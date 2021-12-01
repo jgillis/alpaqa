@@ -5,19 +5,19 @@
 #include <iostream>
 
 int main() {
-    using alpaqa::vec;
-    using alpaqa::rvec;
     using alpaqa::crvec;
-    using alpaqa::mat;
     using alpaqa::inf;
+    using alpaqa::mat;
+    using alpaqa::rvec;
+    using alpaqa::vec;
 
     // Problem specification
-    alpaqa::Problem problem(2, 1); // # decision variables, # constraints
+    alpaqa::LambdaProblem problem{2, 1}; // # decision variables, # constraints
 
     // minimize  ½ xᵀHx
     //  s.t.     Ax ≤ b
-    mat H(2, 2);    H <<  3, -1, 
-                        -1,  3;
+    mat H(2, 2);    H <<  3, -1,
+                         -1,  3;
     mat A(1, 2);    A <<  2,  1;
     vec b(1);       b << -1;
 

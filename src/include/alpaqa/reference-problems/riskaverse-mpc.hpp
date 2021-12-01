@@ -5,7 +5,7 @@
 namespace alpaqa {
 namespace problems {
 
-Problem riskaverse_mpc_problem();
+LambdaProblem riskaverse_mpc_problem();
 
 } // namespace problems
 } // namespace alpaqa

@@ -20,8 +20,7 @@ int main() {
     const char *outsdif_fname = "CUTEst/ROSENBR/OUTSDIF.d";
 
     // Load the problem
-    CUTEstProblem cutest_p(so_fname, outsdif_fname);
-    const alpaqa::Problem &p = cutest_p.problem;
+    alpaqa::CUTEstProblem p{so_fname, outsdif_fname};
 
     // Settings for the outer augmented Lagrangian method
     alpaqa::ALMParams almparam;
@@ -34,7 +33,7 @@ int main() {
     // Settings for the inner PANOC solver
     alpaqa::PANOCParams panocparam;
     panocparam.max_iter       = 500;
-    panocparam.print_interval = 10;
+    panocparam.print_interval = 1;
     // Settings for the L-BFGS algorithm used by PANOC
     alpaqa::LBFGSParams lbfgsparam;
     lbfgsparam.memory = 10;
@@ -46,8 +45,8 @@ int main() {
     };
 
     // Initial guess
-    vec x = cutest_p.x0;
-    vec y = cutest_p.y0;
+    vec x = p.get_x0();
+    vec y = p.get_y0();
 
     // Solve the problem
     auto stats = solver(p, y, x);
@@ -57,9 +56,9 @@ int main() {
     std::cout << "x = " << x.transpose() << std::endl;
     std::cout << "y = " << y.transpose() << std::endl;
     vec g(p.m);
-    p.g(x, g);
+    p.eval_g(x, g);
     std::cout << "g = " << g.transpose() << std::endl;
-    std::cout << "f = " << p.f(x) << std::endl;
+    std::cout << "f = " << p.eval_f(x) << std::endl;
     std::cout << "inner: " << stats.inner.iterations << std::endl;
     std::cout << "outer: " << stats.outer_iterations << std::endl;
 }

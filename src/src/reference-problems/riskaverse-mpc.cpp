@@ -1,5 +1,5 @@
-#include <memory>
 #include <alpaqa/reference-problems/riskaverse-mpc.hpp>
+#include <memory>
 
 namespace alpaqa {
 namespace problems {
@@ -55,10 +55,10 @@ struct RiskaverseProblem {
     using Diag = Eigen::DiagonalMatrix<real_t, Eigen::Dynamic, Eigen::Dynamic>;
 
     RiskaverseProblem() {
-        A       = alpaqa::mat::Identity(nx, nx);
+        A       = mat::Identity(nx, nx);
         A(0, 2) = Ts;
         A(1, 3) = Ts;
-        B       = alpaqa::mat::Zero(nx, nu);
+        B       = mat::Zero(nx, nu);
         B(2, 0) = Ts;
         B(3, 1) = Ts;
 
@@ -71,9 +71,7 @@ struct RiskaverseProblem {
         x0.fill(10);
     }
 
-    auto mpc_dynamics(crvec x, crvec u) const {
-        return A * x + B * u;
-    };
+    auto mpc_dynamics(crvec x, crvec u) const { return A * x + B * u; };
 
     real_t f(crvec ux) const { return s(ux)(0); }
     void grad_f(crvec ux, rvec grad_f) const {
@@ -89,7 +87,7 @@ struct RiskaverseProblem {
                  (y(ux)(0) - y(ux)(1) - y(ux)(2) - s(ux)(1));
     }
     void grad_g(crvec ux, crvec v, rvec grad_u_v) const {
-        alpaqa::mat grad      = alpaqa::mat::Zero(n, m);
+        mat grad          = mat::Zero(n, m);
         s(grad.col(0))(0) = -1;
         y(grad.col(0))(0) = 1;
         y(grad.col(0))(1) = -1;
@@ -107,24 +105,22 @@ struct RiskaverseProblem {
     }
 };
 
-Problem riskaverse_mpc_problem() {
+LambdaProblem riskaverse_mpc_problem() {
     auto rptr = std::make_shared<RiskaverseProblem>();
     auto &r   = *rptr;
-    return Problem{
+    LambdaProblem prob{
         r.n,
         r.m,
         r.get_C(),
         r.get_D(),
-        [rptr](crvec ux) { return rptr->f(ux); },
-        [rptr](crvec ux, rvec g_u) { rptr->grad_f(ux, g_u); },
-        [rptr](crvec ux, rvec g_u) { rptr->g(ux, g_u); },
-        [rptr](crvec ux, crvec v, rvec grad_u_v) {
-            rptr->grad_g(ux, v, grad_u_v);
-        },
-        {},
-        {},
-        {},
     };
+    prob.f           = [rptr](crvec ux) { return rptr->f(ux); };
+    prob.grad_f      = [rptr](crvec ux, rvec g_u) { rptr->grad_f(ux, g_u); };
+    prob.g           = [rptr](crvec ux, rvec g_u) { rptr->g(ux, g_u); };
+    prob.grad_g_prod = [rptr](crvec ux, crvec v, rvec grad_u_v) {
+        rptr->grad_g(ux, v, grad_u_v);
+    };
+    return prob;
 }
 
 } // namespace problems

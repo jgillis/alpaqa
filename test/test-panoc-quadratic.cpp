@@ -11,7 +11,6 @@ TEST(PANOC, quadratic) {
     using alpaqa::crvec;
     using alpaqa::inf;
     using alpaqa::NaN;
-    using alpaqa::Problem;
     using alpaqa::real_t;
     using alpaqa::rvec;
     using alpaqa::vec;
@@ -34,7 +33,7 @@ TEST(PANOC, quadratic) {
 
     auto grad_g = [=]([[maybe_unused]] crvec x, crvec v, rvec grad_u_v) {
         alpaqa::mat grad = alpaqa::mat::Ones(n, m);
-        grad_u_v     = grad * v;
+        grad_u_v         = grad * v;
     };
     auto g_fun = [=](crvec x) {
         vec gg(m);
@@ -42,7 +41,11 @@ TEST(PANOC, quadratic) {
         return gg;
     };
 
-    Problem p{n, m, C, D, obj_f, grad_f, g, grad_g, {}, {}, {}};
+    alpaqa::LambdaProblem p{n, m, C, D};
+    p.f           = obj_f;
+    p.grad_f      = grad_f;
+    p.g           = g;
+    p.grad_g_prod = grad_g;
 
     alpaqa::PANOCParams params;
     params.max_iter = 10;

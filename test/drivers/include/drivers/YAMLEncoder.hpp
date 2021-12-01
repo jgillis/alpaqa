@@ -26,12 +26,12 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out, alpaqa::crvec v) {
 }
 
 inline YAML::Emitter &operator<<(YAML::Emitter &out,
-                                 CUTEstProblem::Report::Status s) {
+                                 alpaqa::CUTEstProblem::Report::Status s) {
     return out << enum_name(s);
 }
 
 inline YAML::Emitter &operator<<(YAML::Emitter &out,
-                                 const CUTEstProblem::Report &r) {
+                                 const alpaqa::CUTEstProblem::Report &r) {
     out << YAML::BeginMap;
     out << YAML::Key << r.name;
     out << YAML::Value << YAML::BeginMap;
@@ -81,7 +81,8 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out, alpaqa::PANOCStopCrit p) {
     return out << enum_name(p);
 }
 
-inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::LBFGSParams &p) {
+inline YAML::Emitter &operator<<(YAML::Emitter &out,
+                                 const alpaqa::LBFGSParams &p) {
     out << YAML::BeginMap;
     out << YAML::Key << "memory" << YAML::Value << p.memory;
     out << YAML::BeginMap;
@@ -95,7 +96,8 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::LBFGSParams &
     return out;
 }
 
-inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::PANOCParams &p) {
+inline YAML::Emitter &operator<<(YAML::Emitter &out,
+                                 const alpaqa::PANOCParams &p) {
     out << YAML::BeginMap;
     out << YAML::Key << "Lipschitz" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "ε" << YAML::Value << p.Lipschitz.ε;
@@ -116,7 +118,8 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::PANOCParams &
     return out;
 }
 
-inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::ALMParams &p) {
+inline YAML::Emitter &operator<<(YAML::Emitter &out,
+                                 const alpaqa::ALMParams &p) {
     out << YAML::BeginMap;
     out << YAML::Key << "ε" << YAML::Value << p.ε;
     out << YAML::Key << "δ" << YAML::Value << p.δ;
@@ -141,7 +144,6 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::ALMParams &p)
     out << YAML::Key << "max_total_num_retries" << YAML::Value
         << p.max_total_num_retries;
     out << YAML::Key << "print_interval" << YAML::Value << p.print_interval;
-    out << YAML::Key << "preconditioning" << YAML::Value << p.preconditioning;
     out << YAML::Key << "single_penalty_factor" << YAML::Value
         << p.single_penalty_factor;
     out << YAML::EndMap;
@@ -165,9 +167,10 @@ operator<<(YAML::Emitter &out,
     return out;
 }
 
-inline YAML::Emitter &operator<<(
-    YAML::Emitter &out,
-    const alpaqa::InnerStatsAccumulator<alpaqa::StructuredPANOCLBFGSSolver::Stats> &s) {
+inline YAML::Emitter &
+operator<<(YAML::Emitter &out,
+           const alpaqa::InnerStatsAccumulator<
+               alpaqa::StructuredPANOCLBFGSSolver::Stats> &s) {
     out << YAML::BeginMap;
     out << YAML::Key << "elapsed_time" << YAML::Value << s.elapsed_time.count();
     out << YAML::Key << "iterations" << YAML::Value << s.iterations;
@@ -192,9 +195,9 @@ operator<<(YAML::Emitter &out,
     return out;
 }
 
-inline YAML::Emitter &
-operator<<(YAML::Emitter &out,
-           const alpaqa::InnerStatsAccumulator<alpaqa::GAAPGASolver::Stats> &s) {
+inline YAML::Emitter &operator<<(
+    YAML::Emitter &out,
+    const alpaqa::InnerStatsAccumulator<alpaqa::GAAPGASolver::Stats> &s) {
     out << YAML::BeginMap;
     out << YAML::Key << "elapsed_time" << YAML::Value << s.elapsed_time.count();
     out << YAML::Key << "iterations" << YAML::Value << s.iterations;
@@ -206,7 +209,8 @@ operator<<(YAML::Emitter &out,
 
 inline YAML::Emitter &operator<<(
     YAML::Emitter &out,
-    const alpaqa::InnerStatsAccumulator<alpaqa::SecondOrderPANOCSolver::Stats> &s) {
+    const alpaqa::InnerStatsAccumulator<alpaqa::SecondOrderPANOCSolver::Stats>
+        &s) {
     out << YAML::BeginMap;
     out << YAML::Key << "elapsed_time" << YAML::Value << s.elapsed_time.count();
     out << YAML::Key << "iterations" << YAML::Value << s.iterations;

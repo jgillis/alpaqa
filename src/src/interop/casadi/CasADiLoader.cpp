@@ -9,59 +9,6 @@
 
 namespace alpaqa {
 
-#if 0
-std::function<alpaqa::Problem::f_sig>
-load_CasADi_objective(const std::string &so_name, const std::string &fun_name) {
-    return CasADiFun_1Vi1So(casadi::external(fun_name, so_name));
-}
-std::function<alpaqa::Problem::grad_f_sig>
-load_CasADi_gradient_objective(const std::string &so_name,
-                               const std::string &fun_name) {
-    return CasADiFun_1Vi1Vo(casadi::external(fun_name, so_name));
-}
-std::function<alpaqa::Problem::g_sig>
-load_CasADi_constraints(const std::string &so_name,
-                        const std::string &fun_name) {
-    return CasADiFun_1Vi1Vo(casadi::external(fun_name, so_name));
-}
-std::function<alpaqa::Problem::grad_g_prod_sig>
-load_CasADi_gradient_constraints_prod(const std::string &so_name,
-                                      const std::string &fun_name) {
-    return [csf{CasADiFun_2Vi1Vo(casadi::external(fun_name, so_name))}] //
-        (alpaqa::crvec x, alpaqa::crvec y, alpaqa::rvec gradprod) {                 //
-            if (y.size() == 0)
-                gradprod.setZero();
-            else
-                csf(x, y, gradprod);
-        };
-}
-std::function<alpaqa::Problem::hess_L_sig>
-load_CasADi_hessian_lagrangian(const std::string &so_name,
-                               const std::string &fun_name) {
-    return [csf{CasADiFun_2Vi1Mo(casadi::external(fun_name, so_name))}] //
-        (alpaqa::crvec x, alpaqa::crvec y, alpaqa::rmat H) {                        //
-            // Fix the stride if the matrix is larger than n
-            if (x.rows() != H.rows()) { // TODO: this is probably unnecessary
-                for (auto c = x.rows(); c-- > 1;)
-                    for (auto r = x.rows(); r-- > 0;)
-                        std::swap(H(r, c), H.data()[r + x.rows() * c]);
-            }
-            csf(x, y, H);
-            // Fix the stride if the matrix is larger than n
-            if (x.rows() != H.rows()) {
-                for (auto c = x.rows(); c-- > 1;)
-                    for (auto r = x.rows(); r-- > 0;)
-                        std::swap(H(r, c), H.data()[r + x.rows() * c]);
-            }
-        };
-}
-std::function<alpaqa::Problem::hess_L_prod_sig>
-load_CasADi_hessian_lagrangian_prod(const std::string &so_name,
-                                    const std::string &fun_name) {
-    return CasADiFun_3Vi1Vo(casadi::external(fun_name, so_name));
-}
-#endif
-
 template <class F>
 auto wrap_load(const std::string &so_name, const char *name, F f) {
     try {
@@ -85,8 +32,8 @@ constexpr static auto dims = [](auto... a) {
 };
 using dim = std::pair<casadi_int, casadi_int>;
 
-alpaqa::Problem load_CasADi_problem(const std::string &so_name, unsigned n,
-                                unsigned m, bool second_order) {
+CasADiProblem load_CasADi_problem(const std::string &so_name, unsigned n,
+                                  unsigned m, bool second_order) {
 
     auto load_g_unknown_dims = [&] {
         CasADiFunctionEvaluator<1, 1> g{casadi::external("g", so_name)};
@@ -119,7 +66,7 @@ alpaqa::Problem load_CasADi_problem(const std::string &so_name, unsigned n,
             // the dimensions specified by the user.
             : wrap_load(so_name, "g", load_g_known_dims);
 
-    auto prob = alpaqa::Problem(n, m);
+    auto prob = CasADiProblem(n, m);
 
     prob.f      = wrapped_load<CasADiFun_1Vi1So>(so_name, "f", n);
     prob.grad_f = wrapped_load<CasADiFun_1Vi1Vo>(so_name, "grad_f", n, n);
@@ -127,91 +74,44 @@ alpaqa::Problem load_CasADi_problem(const std::string &so_name, unsigned n,
     auto grad_g =
         wrapped_load<CasADiFun_2Vi1Vo>(so_name, "grad_g", dims(n, m), n);
     prob.grad_g_prod = grad_g;
+    vec w            = vec::Zero(m);
+    prob.grad_gi     = //
+        [grad_g, w](crvec x, unsigned i, rvec g) mutable {
+            w(i) = 1;
+            grad_g(x, w, g);
+            w(i) = 0;
+        };
     if (second_order) {
-        alpaqa::vec w    = alpaqa::vec::Zero(m);
-        prob.grad_gi = //
-            [grad_g, w](alpaqa::crvec x, unsigned i, alpaqa::rvec g) mutable {
-                w(i) = 1;
-                grad_g(x, w, g);
-                w(i) = 0;
-            };
         prob.hess_L =                                              //
             wrapped_load<CasADiFun_2Vi1Mo>(so_name, "hess_L",      //
                                            dims(n, m), dim(n, n)); //
         prob.hess_L_prod =                                         //
             wrapped_load<CasADiFun_3Vi1Vo>(so_name, "hess_L_prod", //
                                            dims(n, m, n), n);      //
+    } else {
+        prob.hess_L_prod = [](crvec, crvec, crvec, rvec) {
+            throw not_implemented_error(
+                "CasADiProblem::hess_L_prod not supported");
+        };
+        prob.hess_L = [](crvec, crvec, rmat) {
+            throw not_implemented_error("CasADiProblem::hess_L not supported");
+        };
     }
     return prob;
 }
 
-class CasADiParamWrapper
-    : public ParamWrapper,
-      public std::enable_shared_from_this<CasADiParamWrapper> {
-
-  public:
-    struct Functions {
-        CasADiFun_2Vi1So f;
-        CasADiFun_2Vi1Vo grad_f;
-        CasADiFun_2Vi1Vo g;
-        CasADiFun_3Vi1Vo grad_g_prod;
-        std::optional<CasADiFun_3Vi1Mo> hess_L;
-        std::optional<CasADiFun_4Vi1Vo> hess_L_prod;
-    } cs;
-
-  private:
-    CasADiParamWrapper(unsigned p, Functions &&functions)
-        : ParamWrapper(p), cs(std::move(functions)) {}
-
-  public:
-    static std::shared_ptr<CasADiParamWrapper> create(unsigned p,
-                                                      Functions &&functions) {
-        return std::make_shared<CasADiParamWrapper>(CasADiParamWrapper{
-            p,
-            std::move(functions),
-        });
-    }
-
-    void wrap(Problem &prob) override {
-        auto param = this->shared_from_this();
-        prob.f     = [param](crvec x) -> real_t {
-            return param->cs.f(x, param->param);
-        };
-        prob.grad_f = [param](crvec x, rvec gr) {
-            param->cs.grad_f(x, param->param, gr);
-        };
-        prob.g = [param](crvec x, rvec g) -> void {
-            param->cs.g(x, param->param, g);
-        };
-        prob.grad_g_prod = [param](crvec x, crvec y, rvec g) {
-            param->cs.grad_g_prod(x, param->param, y, g);
-        };
-        alpaqa::vec w    = alpaqa::vec::Zero(prob.m);
-        prob.grad_gi = [param, w](crvec x, unsigned i, rvec g) mutable {
-            w(i) = 1;
-            param->cs.grad_g_prod(x, param->param, w, g);
-            w(i) = 0;
-        };
-        if (param->cs.hess_L) {
-            prob.hess_L = [param](crvec x, crvec y, rvec g) {
-                (*param->cs.hess_L)(x, param->param, y, g);
-            };
-        }
-        if (param->cs.hess_L_prod) {
-            prob.hess_L_prod = [param](crvec x, crvec y, crvec v, rvec g) {
-                (*param->cs.hess_L_prod)(x, param->param, y, v, g);
-            };
-        }
-    }
-
-    std::shared_ptr<ParamWrapper> clone() const override {
-        return std::make_shared<CasADiParamWrapper>(*this);
-    }
+struct CasADiFunctions {
+    CasADiFun_2Vi1So f;
+    CasADiFun_2Vi1Vo grad_f;
+    CasADiFun_2Vi1Vo g;
+    CasADiFun_3Vi1Vo grad_g_prod;
+    std::optional<CasADiFun_3Vi1Mo> hess_L;
+    std::optional<CasADiFun_4Vi1Vo> hess_L_prod;
 };
 
-ProblemWithParam load_CasADi_problem_with_param(const std::string &so_name,
-                                                unsigned n, unsigned m,
-                                                unsigned p, bool second_order) {
+CasADiProblemWithParam
+load_CasADi_problem_with_param(const std::string &so_name, unsigned n,
+                               unsigned m, unsigned p, bool second_order) {
 
     auto load_g_unknown_dims = [&] {
         CasADiFunctionEvaluator<2, 1> g{casadi::external("g", so_name)};
@@ -250,23 +150,36 @@ ProblemWithParam load_CasADi_problem_with_param(const std::string &so_name,
             // the dimensions specified by the user.
             : wrap_load(so_name, "g", load_g_known_dims);
 
-    auto prob = ProblemWithParam(n, m);
+    auto prob = CasADiProblemWithParam(n, m);
 
-    prob.wrapper = CasADiParamWrapper::create(
-        p,
-        {
-            wrapped_load<CasADiFun_2Vi1So>(so_name, "f", dims(n, p)),
-            wrapped_load<CasADiFun_2Vi1Vo>(so_name, "grad_f", dims(n, p), n),
-            CasADiFun_2Vi1Vo(std::move(g)),
-            wrapped_load<CasADiFun_3Vi1Vo>(so_name, "grad_g", dims(n, p, m), n),
-            second_order ? std::make_optional(wrapped_load<CasADiFun_3Vi1Mo>(
-                               so_name, "hess_L", dims(n, p, m), dim(n, n)))
-                         : std::nullopt,
-            second_order ? std::make_optional(wrapped_load<CasADiFun_4Vi1Vo>(
-                               so_name, "hess_L_prod", dims(n, p, m, n), n))
-                         : std::nullopt,
-        });
-    prob.wrapper->wrap(prob);
+    prob.f = wrapped_load<CasADiFun_2Vi1So>(so_name, "f", dims(n, p));
+    prob.grad_f =
+        wrapped_load<CasADiFun_2Vi1Vo>(so_name, "grad_f", dims(n, p), n);
+    prob.g = CasADiFun_2Vi1Vo(std::move(g));
+    prob.grad_g_prod =
+        wrapped_load<CasADiFun_3Vi1Vo>(so_name, "grad_g", dims(n, p, m), n);
+    vec w        = vec::Zero(m);
+    prob.grad_gi = [grad_g{prob.grad_g_prod}, w](crvec x, crvec param,
+                                                 unsigned i, rvec g) mutable {
+        w(i) = 1;
+        grad_g(x, param, w, g);
+        w(i) = 0;
+    };
+    if (second_order) {
+        prob.hess_L_prod = wrapped_load<CasADiFun_4Vi1Vo>( //
+            so_name, "hess_L_prod", dims(n, p, m, n), n);
+        prob.hess_L      = wrapped_load<CasADiFun_3Vi1Mo>( //
+            so_name, "hess_L", dims(n, p, m), dim(n, n));
+    } else {
+        prob.hess_L_prod = [](crvec, crvec, crvec, crvec, rvec) {
+            throw not_implemented_error(
+                "CasADiProblemWithParam::hess_L_prod not supported");
+        };
+        prob.hess_L = [](crvec, crvec, crvec, rmat) {
+            throw not_implemented_error(
+                "CasADiProblemWithParam::hess_L not supported");
+        };
+    }
     return prob;
 }
 

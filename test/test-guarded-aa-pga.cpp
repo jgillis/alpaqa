@@ -31,11 +31,11 @@ TEST(ALMGAAPGA, DISABLED_riskaverse) {
     real_t Ts = 0.05;
 
     alpaqa::mat A = alpaqa::mat::Identity(nx, nx);
-    A(0, 2)   = Ts;
-    A(1, 3)   = Ts;
+    A(0, 2)       = Ts;
+    A(1, 3)       = Ts;
     alpaqa::mat B = alpaqa::mat::Zero(nx, nu);
-    B(2, 0)   = Ts;
-    B(3, 1)   = Ts;
+    B(2, 0)       = Ts;
+    B(3, 1)       = Ts;
 
     auto f = [&](crvec x, crvec u) { return A * x + B * u; };
 
@@ -62,7 +62,7 @@ TEST(ALMGAAPGA, DISABLED_riskaverse) {
                  (y(ux)(0) - y(ux)(1) - y(ux)(2) - s(ux)(1));
     };
     auto grad_g = [&](crvec ux, crvec v, rvec grad_u_v) {
-        alpaqa::mat grad      = alpaqa::mat::Zero(n, m);
+        alpaqa::mat grad  = alpaqa::mat::Zero(n, m);
         s(grad.col(0))(0) = -1;
         y(grad.col(0))(0) = 1;
         y(grad.col(0))(1) = -1;
@@ -79,7 +79,11 @@ TEST(ALMGAAPGA, DISABLED_riskaverse) {
         grad_u_v = grad * v;
     };
 
-    Problem p{n, m, C, D, obj_f, grad_f, g, grad_g, {}, {}, {}};
+    LambdaProblem p{n, m, C, D};
+    p.f           = obj_f;
+    p.grad_f      = grad_f;
+    p.g           = g;
+    p.grad_g_prod = grad_g;
     ProblemWithCounters pc(p);
 
     ALMParams almparam;
@@ -94,7 +98,6 @@ TEST(ALMGAAPGA, DISABLED_riskaverse) {
     almparam.M        = 1e9;
     almparam.Σ_max    = 1e9;
     almparam.max_iter = 100;
-    almparam.preconditioning = true;
 
     GAAPGAParams pgaparam;
     pgaparam.Lipschitz.ε   = 1e-6;
@@ -138,10 +141,10 @@ TEST(ALMGAAPGA, DISABLED_riskaverse) {
         (end - begin) / N);
     std::cout << duration.count() << "µs" << std::endl;
 
-    std::cout << "# eval f:  " << pc.evaluations->f << std::endl;
-    std::cout << "# eval ∇f: " << pc.evaluations->grad_f << std::endl;
-    std::cout << "# eval g:  " << pc.evaluations->g << std::endl;
-    std::cout << "# eval ∇g: " << pc.evaluations->grad_g_prod << std::endl;
+    std::cout << "# eval f:  " << pc.evaluations.f << std::endl;
+    std::cout << "# eval ∇f: " << pc.evaluations.grad_f << std::endl;
+    std::cout << "# eval g:  " << pc.evaluations.g << std::endl;
+    std::cout << "# eval ∇g: " << pc.evaluations.grad_g_prod << std::endl;
 
     std::cout << "Status: " << stats.status << std::endl;
 

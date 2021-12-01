@@ -19,25 +19,7 @@ inline real_t calc_ψ_ŷ(const Problem &p, ///< [in]  Problem description
                        crvec Σ, ///< [in]  Penalty weights @f$ \Sigma @f$
                        rvec ŷ   ///< [out] @f$ \hat{y} @f$
 ) {
-    if (p.m == 0) /* [[unlikely]] */
-        return p.f(x);
-
-    // g(x)
-    p.g(x, ŷ);
-    // ζ = g(x) + Σ⁻¹y
-    ŷ += Σ.asDiagonal().inverse() * y;
-    // d = ζ - Π(ζ, D)
-    ŷ = projecting_difference(ŷ, p.D);
-    // dᵀŷ, ŷ = Σ d
-    real_t dᵀŷ = 0;
-    for (unsigned i = 0; i < p.m; ++i) {
-        dᵀŷ += ŷ(i) * Σ(i) * ŷ(i); // TODO: vectorize
-        ŷ(i) = Σ(i) * ŷ(i);
-    }
-    // ψ(x) = f(x) + ½ dᵀŷ
-    real_t ψ = p.f(x) + 0.5 * dᵀŷ;
-
-    return ψ;
+    return p.eval_ψ_ŷ(x, y, Σ, ŷ);
 }
 
 /// Calculate ∇ψ(x) using ŷ.
@@ -47,12 +29,7 @@ inline void calc_grad_ψ_from_ŷ(const Problem &p, ///< [in]  Problem descriptio
                                rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
                                rvec work_n  ///<       Dimension n
 ) {
-    // ∇ψ = ∇f(x) + ∇g(x) ŷ
-    p.grad_f(x, grad_ψ);
-    if (p.m != 0) /* [[likely]] */ {
-        p.grad_g_prod(x, ŷ, work_n);
-        grad_ψ += work_n;
-    }
+    return p.eval_grad_ψ_from_ŷ(x, ŷ, grad_ψ, work_n);
 }
 
 /// Calculate both ψ(x) and its gradient ∇ψ(x).
@@ -67,11 +44,7 @@ inline real_t calc_ψ_grad_ψ(const Problem &p, ///< [in]  Problem description
                             rvec work_n, ///<       Dimension n
                             rvec work_m  ///<       Dimension m
 ) {
-    // ψ(x) = f(x) + ½ dᵀŷ
-    real_t ψ = calc_ψ_ŷ(p, x, y, Σ, work_m);
-    // ∇ψ = ∇f(x) + ∇g(x) ŷ
-    calc_grad_ψ_from_ŷ(p, x, work_m, grad_ψ, work_n);
-    return ψ;
+    return p.eval_ψ_grad_ψ(x, y, Σ, grad_ψ, work_n, work_m);
 }
 
 /// Calculate the gradient ∇ψ(x).
@@ -84,22 +57,7 @@ inline void calc_grad_ψ(const Problem &p, ///< [in]  Problem description
                         rvec work_n, ///<       Dimension n
                         rvec work_m  ///<       Dimension m
 ) {
-    if (p.m == 0) /* [[unlikely]] */
-        return p.grad_f(x, grad_ψ);
-
-    // g(x)
-    p.g(x, work_m);
-    // ζ = g(x) + Σ⁻¹y
-    work_m += (y.array() / Σ.array()).matrix();
-    // d = ζ - Π(ζ, D)
-    work_m = projecting_difference(work_m, p.D);
-    // ŷ = Σ d
-    work_m = Σ.asDiagonal() * work_m;
-
-    // ∇ψ = ∇f(x) + ∇g(x) ŷ
-    p.grad_f(x, grad_ψ);
-    p.grad_g_prod(x, work_m, work_n);
-    grad_ψ += work_n;
+    return p.eval_grad_ψ(x, y, Σ, grad_ψ, work_n, work_m);
 }
 
 /// Calculate the error between ẑ and g(x).
@@ -111,7 +69,7 @@ inline void calc_err_z(const Problem &p, ///< [in]  Problem description
                        rvec err_z ///< [out] @f$ g(\hat{x}) - \hat{z} @f$
 ) {
     // g(x̂)
-    p.g(x̂, err_z);
+    p.eval_g(x̂, err_z);
     // ζ = g(x̂) + Σ⁻¹y
     // ẑ = Π(ζ, D)
     // g(x) - ẑ
@@ -295,7 +253,7 @@ inline real_t descent_lemma(
         norm_sq_pₖ = pₖ.squaredNorm();
 
         // Calculate ψ(x̂ₖ) and ŷ(x̂ₖ)
-        ψx̂ₖ = calc_ψ_ŷ(problem, x̂ₖ, y, Σ, /* in ⟹ out */ ŷx̂ₖ);
+        ψx̂ₖ = problem.eval_ψ_ŷ(x̂ₖ, y, Σ, /* in ⟹ out */ ŷx̂ₖ);
     }
     return old_γₖ;
 }
@@ -358,15 +316,15 @@ inline void calc_augmented_lagrangian_hessian(
     rvec work_n) {
 
     // Compute the Hessian of the Lagrangian
-    problem.hess_L(xₖ, ŷxₖ, H);
+    problem.eval_hess_L(xₖ, ŷxₖ, H);
     // Compute the Hessian of the augmented Lagrangian
-    problem.g(xₖ, g);
+    problem.eval_g(xₖ, g);
     for (vec::Index i = 0; i < problem.m; ++i) {
         real_t ζ = g(i) + y(i) / Σ(i);
         bool inactive =
             problem.D.lowerbound(i) < ζ && ζ < problem.D.upperbound(i);
         if (not inactive) {
-            problem.grad_gi(xₖ, i, work_n);
+            problem.eval_grad_gi(xₖ, i, work_n);
             H += work_n * Σ(i) * work_n.transpose();
         }
     }

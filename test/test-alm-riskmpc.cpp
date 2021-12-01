@@ -1,15 +1,16 @@
-#include <iomanip>
 #include <alpaqa/decl/alm.hpp>
 #include <alpaqa/inner/decl/panoc.hpp>
 #include <alpaqa/inner/directions/decl/lbfgs.hpp>
 #include <alpaqa/reference-problems/riskaverse-mpc.hpp>
+
+#include <iomanip>
 
 #include "eigen-matchers.hpp"
 
 TEST(ALM, riskaverse) {
     using namespace alpaqa;
 
-    Problem p = problems::riskaverse_mpc_problem();
+    auto &&p = problems::riskaverse_mpc_problem();
     ProblemWithCounters pc(p);
 
     ALMParams almparam;
@@ -24,7 +25,6 @@ TEST(ALM, riskaverse) {
     almparam.M        = 1e9;
     almparam.Σ_max    = 1e9;
     almparam.max_iter = 100;
-    almparam.preconditioning = false;
     // almparam.single_penalty_factor = true;
 
     PANOCParams panocparam;
@@ -59,9 +59,9 @@ TEST(ALM, riskaverse) {
     std::cout << "u = " << x.topRows(2).transpose() << std::endl;
     std::cout << "x = " << x.bottomRows(5).transpose() << std::endl;
     std::cout << "λ = " << λ.transpose() << std::endl;
-    std::cout << "f(x) = " << p.f(x) << std::endl;
+    std::cout << "f(x) = " << p.eval_f(x) << std::endl;
     auto gx = vec(p.m);
-    p.g(x, gx);
+    p.eval_g(x, gx);
     std::cout << "g(x) = " << gx.transpose() << std::endl;
     std::cout << "Inner: " << stats.inner.iterations
               << ", Outer: " << stats.outer_iterations << std::endl;
@@ -70,10 +70,10 @@ TEST(ALM, riskaverse) {
         (end - begin) / N);
     std::cout << duration.count() << "µs" << std::endl;
 
-    std::cout << "# eval f:  " << pc.evaluations->f << std::endl;
-    std::cout << "# eval ∇f: " << pc.evaluations->grad_f << std::endl;
-    std::cout << "# eval g:  " << pc.evaluations->g << std::endl;
-    std::cout << "# eval ∇g: " << pc.evaluations->grad_g_prod << std::endl;
+    std::cout << "# eval f:  " << pc.evaluations.f << std::endl;
+    std::cout << "# eval ∇f: " << pc.evaluations.grad_f << std::endl;
+    std::cout << "# eval g:  " << pc.evaluations.g << std::endl;
+    std::cout << "# eval ∇g: " << pc.evaluations.grad_g_prod << std::endl;
 
     std::cout << "Status: " << stats.status << std::endl;
 

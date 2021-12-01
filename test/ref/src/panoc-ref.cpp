@@ -19,7 +19,7 @@ namespace detail {
 
 vec eval_g(const Problem &prob, crvec x) {
     vec g(prob.m);
-    prob.g(x, g);
+    prob.eval_g(x, g);
     return g;
 }
 
@@ -36,15 +36,15 @@ vec eval_ŷ(const Problem &prob, crvec x, crvec y, crvec Σ) {
 
 real_t eval_ψ(const Problem &prob, crvec x, crvec y, crvec Σ) {
     vec g = eval_g(prob, x);
-    return prob.f(x) +
+    return prob.eval_f(x) +
            0.5 * dist_squared(g + Σ.asDiagonal().inverse() * y, prob.D, Σ);
 }
 
 vec eval_grad_ψ(const Problem &prob, crvec x, crvec y, crvec Σ) {
     vec ŷ = eval_ŷ(prob, x, y, Σ);
     vec grad_f(prob.n), grad_gŷ(prob.n);
-    prob.grad_f(x, grad_f);
-    prob.grad_g_prod(x, ŷ, grad_gŷ);
+    prob.eval_grad_f(x, grad_f);
+    prob.eval_grad_g_prod(x, ŷ, grad_gŷ);
     return grad_f + grad_gŷ;
 }
 
@@ -173,7 +173,8 @@ PANOCSolver::Stats PANOCSolver::operator()(
         vec pₖ = projected_gradient_step(problem, xₖ, y, Σ, γₖ);
         vec qₖ(n);
         real_t step_size =
-            params.lbfgs_stepsize == alpaqa::LBFGSStepSize::BasedOnGradientStepSize
+            params.lbfgs_stepsize ==
+                    alpaqa::LBFGSStepSize::BasedOnGradientStepSize
                 ? 1
                 : -1;
         if (k > 0)

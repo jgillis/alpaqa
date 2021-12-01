@@ -227,7 +227,8 @@ auto get_inner_solver() {
 }
 auto get_problem(const alpaqa::Problem &p) { return p; }
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
-inline YAML::Emitter &operator<<(YAML::Emitter &out, const alpaqa::PGAParams &p) {
+inline YAML::Emitter &operator<<(YAML::Emitter &out,
+                                 const alpaqa::PGAParams &p) {
     out << YAML::BeginMap;
     out << YAML::Key << "Lipschitz" << YAML::Value << YAML::BeginMap;
     out << YAML::Key << "ε" << YAML::Value << p.Lipschitz.ε;
@@ -289,10 +290,9 @@ int main(int argc, char *argv[]) {
     }
 
     alpaqa::ALMParams almparams;
-    almparams.max_iter        = 240;
-    almparams.max_time        = 30s;
-    almparams.max_time        = 1min + 30s;
-    almparams.preconditioning = false;
+    almparams.max_iter = 240;
+    almparams.max_time = 30s;
+    almparams.max_time = 1min + 30s;
     // almparams.print_interval  = 1;
     almparams.Σ₀                      = 1;
     almparams.Δ                       = 10;
@@ -330,18 +330,19 @@ int main(int argc, char *argv[]) {
     }
 
     std::string prob_dir = "CUTEst/"s + argv[1];
-    CUTEstProblem cp(prob_dir + "/libcutest-problem-" + argv[1] + ".so",
-                     prob_dir + "/OUTSDIF.d");
 
     std::atomic_signal_fence(std::memory_order_release);
     acitve_solver.store(&solver, std::memory_order_relaxed);
     signal(SIGINT, signal_callback_handler);
 
-    auto problem_cnt = alpaqa::ProblemWithCounters(cp.problem);
-    auto problem     = get_problem(problem_cnt);
+    auto cp      = alpaqa::ProblemWithCounters{alpaqa::CUTEstProblem{
+        prob_dir + "/libcutest-problem-" + argv[1] + ".so",
+        prob_dir + "/OUTSDIF.d",
+    }};
+    auto problem = get_problem(cp);
 
-    vec x = cp.x0;
-    vec y = get_y(problem, cp.y0);
+    vec x = cp.get_x0();
+    vec y = get_y(problem, cp.get_y0());
 
     auto status = solver(problem, y, x);
     // ??? TODO: fence
@@ -349,15 +350,15 @@ int main(int argc, char *argv[]) {
     // ??? TODO: fence
     auto report = cp.get_report();
 
-    auto f_star = cp.problem.f(x);
+    auto f_star = cp.eval_f(x);
 
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "name" << YAML::Value << cp.name;
+    out << YAML::Key << "name" << YAML::Value << cp.get_name();
     out << YAML::Key << "n" << YAML::Value << problem.n;
     out << YAML::Key << "m" << YAML::Value << problem.m;
     out << YAML::Key << "box constraints x" << YAML::Value
-        << cp.number_box_constraints;
+        << cp.get_number_box_constraints();
     out << YAML::Key << "solver" << YAML::Value << solver.get_name();
     out << YAML::Key << "status" << YAML::Value << status.status;
     out << YAML::Key << "outer iterations" << YAML::Value
@@ -377,7 +378,7 @@ int main(int argc, char *argv[]) {
     out << YAML::Key << "‖x‖" << YAML::Value << x.norm();
     out << YAML::Key << "‖y‖" << YAML::Value << y.norm();
     out << YAML::Key << "f" << YAML::Value << f_star;
-    out << YAML::Key << "counters" << YAML::Value << *problem_cnt.evaluations;
+    out << YAML::Key << "counters" << YAML::Value << cp.evaluations;
     // out << YAML::Key << "x" << YAML::Value << x;
     // out << YAML::Key << "y" << YAML::Value << y;
     out << YAML::EndMap;

@@ -276,16 +276,16 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
                             problem, xₖ, y, Σ, grad_ψₖ, qₖ, HqK, work_n,
                             work_n2, work_m);
                     } else {
-                        problem.hess_L_prod(xₖ, y, qₖ, HqK);
+                        problem.eval_hess_L_prod(xₖ, y, qₖ, HqK);
                         if (params.full_augmented_hessian) {
                             auto &g = work_m;
-                            problem.g(xₖ, g);
+                            problem.eval_g(xₖ, g);
                             for (vec::Index i = 0; i < m; ++i) {
                                 real_t ζ      = g(i) + y(i) / Σ(i);
                                 bool inactive = problem.D.lowerbound(i) < ζ &&
                                                 ζ < problem.D.upperbound(i);
                                 if (not inactive) {
-                                    problem.grad_gi(xₖ, i, work_n);
+                                    problem.eval_grad_gi(xₖ, i, work_n);
                                     auto t = Σ(i) * work_n.dot(qₖ);
                                     // TODO: the dot product is more work than
                                     //       strictly necessary (only over K)

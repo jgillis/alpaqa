@@ -13,26 +13,18 @@ using std::chrono::microseconds;
 
 template <class InnerSolverT>
 typename ALMSolver<InnerSolverT>::Stats
-ALMSolver<InnerSolverT>::operator()(const Problem &problem, rvec y, rvec x) {
+ALMSolver<InnerSolverT>::operator()(const Problem &p, rvec y, rvec x) {
     auto start_time = std::chrono::steady_clock::now();
 
     constexpr auto sigNaN = std::numeric_limits<real_t>::signaling_NaN();
-    vec Σ                 = vec::Constant(problem.m, sigNaN);
-    vec Σ_old             = vec::Constant(problem.m, sigNaN);
-    vec error₁            = vec::Constant(problem.m, sigNaN);
-    vec error₂            = vec::Constant(problem.m, sigNaN);
+    vec Σ                 = vec::Constant(p.m, sigNaN);
+    vec Σ_old             = vec::Constant(p.m, sigNaN);
+    vec error₁            = vec::Constant(p.m, sigNaN);
+    vec error₂            = vec::Constant(p.m, sigNaN);
     real_t norm_e₁        = sigNaN;
     real_t norm_e₂        = sigNaN;
 
     Stats s;
-
-    Problem prec_problem;
-    real_t prec_f;
-    vec prec_g;
-
-    if (params.preconditioning)
-        detail::apply_preconditioning(problem, prec_problem, x, prec_f, prec_g);
-    const auto &p = params.preconditioning ? prec_problem : problem;
 
     // Initialize the penalty weights
     if (params.Σ₀ > 0) {
@@ -106,8 +98,6 @@ ALMSolver<InnerSolverT>::operator()(const Problem &problem, rvec y, rvec x) {
             s.outer_iterations = i + 1;
             s.elapsed_time     = duration_cast<microseconds>(time_elapsed);
             s.status           = ps.status;
-            if (params.preconditioning)
-                y = prec_g.asDiagonal() * y / prec_f;
             return s;
         }
 
@@ -165,8 +155,6 @@ ALMSolver<InnerSolverT>::operator()(const Problem &problem, rvec y, rvec x) {
                                      : out_of_time ? SolverStatus::MaxTime
                                      : out_of_iter ? SolverStatus::MaxIter
                                                    : SolverStatus::Unknown;
-                if (params.preconditioning)
-                    y = prec_g.asDiagonal() * y / prec_f;
                 return s;
             }
             // After this line, Σ_old contains the penalty used in the current

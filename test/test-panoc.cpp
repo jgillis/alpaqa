@@ -11,16 +11,13 @@
 using alpaqa::crvec;
 using alpaqa::inf;
 using alpaqa::mat;
-using alpaqa::Problem;
 using alpaqa::real_t;
 using alpaqa::rmat;
 using alpaqa::rvec;
 using alpaqa::vec;
 
-Problem build_test_problem() {
-    alpaqa::Problem p;
-    p.n            = 2;
-    p.m            = 2;
+alpaqa::LambdaProblem build_test_problem() {
+    alpaqa::LambdaProblem p{2, 2};
     p.C.upperbound = vec::Constant(2, inf);
     p.C.lowerbound = vec::Constant(2, -inf);
     p.D.upperbound = vec::Constant(2, 350);
@@ -141,10 +138,8 @@ TEST(PANOC, calc_ψ_grad_ψ) {
     EXPECT_DOUBLE_EQ(ψ_res, ψ);
 }
 
-Problem build_test_problem2() {
-    alpaqa::Problem p;
-    p.n            = 2;
-    p.m            = 2;
+alpaqa::LambdaProblem build_test_problem2() {
+    alpaqa::LambdaProblem p{2, 2};
     p.C.upperbound = vec::Constant(2, 10);
     p.C.lowerbound = vec::Constant(2, -10);
     p.D.upperbound.resize(2);
@@ -210,7 +205,7 @@ Problem build_test_problem2() {
 
 // Test the evaluation of PANOC's augmented Lagrangian hessian
 TEST(PANOC, hessian) {
-    auto p = build_test_problem2();
+    auto &&p = build_test_problem2();
 
     auto f = p.f;
     auto g = [&p](crvec x) {
@@ -376,7 +371,7 @@ TEST(PANOC, hessian) {
     };
     vec gv(2);
     alpaqa::detail::calc_augmented_lagrangian_hessian(p, x, ŷ, y, Σ, gv, H_res,
-                                                  work_n);
+                                                      work_n);
     vec hess_ψ1_fd = pa_ref::finite_diff(grad_ψi(0), x);
     vec hess_ψ2_fd = pa_ref::finite_diff(grad_ψi(1), x);
     EXPECT_THAT(print_wrap(H_res.col(0)),
@@ -392,7 +387,6 @@ TEST(PANOC, ref) {
     using alpaqa::Box;
     using alpaqa::inf;
     using alpaqa::NaN;
-    using alpaqa::Problem;
     using alpaqa::real_t;
     using alpaqa::vec;
 
@@ -421,11 +415,11 @@ TEST(PANOC, ref) {
     real_t Ts = 0.05;
 
     alpaqa::mat A = alpaqa::mat::Identity(nx, nx);
-    A(0, 2)   = Ts;
-    A(1, 3)   = Ts;
+    A(0, 2)       = Ts;
+    A(1, 3)       = Ts;
     alpaqa::mat B = alpaqa::mat::Zero(nx, nu);
-    B(2, 0)   = Ts;
-    B(3, 1)   = Ts;
+    B(2, 0)       = Ts;
+    B(3, 1)       = Ts;
 
     auto f = [=](crvec x, crvec u) { return A * x + B * u; };
 
@@ -453,7 +447,7 @@ TEST(PANOC, ref) {
                  (y(ux)(0) - y(ux)(1) - y(ux)(2) - s(ux)(1));
     };
     auto grad_g_mat = [=](crvec ux) {
-        alpaqa::mat grad      = alpaqa::mat::Zero(n, m);
+        alpaqa::mat grad  = alpaqa::mat::Zero(n, m);
         s(grad.col(0))(0) = -1;
         y(grad.col(0))(0) = 1;
         y(grad.col(0))(1) = -1;
@@ -473,7 +467,11 @@ TEST(PANOC, ref) {
         grad_u_v = grad_g_mat(ux) * v;
     };
 
-    Problem p{n, m, C, D, obj_f, grad_f, g, grad_g_prod, {}, {}, {}};
+    alpaqa::LambdaProblem p{n, m, C, D};
+    p.f           = obj_f;
+    p.grad_f      = grad_f;
+    p.g           = g;
+    p.grad_g_prod = grad_g_prod;
 
     alpaqa::PANOCParams params;
     params.max_iter                       = 1000;

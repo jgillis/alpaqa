@@ -5,7 +5,7 @@
 namespace alpaqa {
 namespace problems {
 
-Problem himmelblau_problem();
+LambdaProblem himmelblau_problem();
 
 } // namespace problems
 } // namespace alpaqa

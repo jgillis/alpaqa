@@ -6,9 +6,14 @@
 #include <chrono>
 #include <functional>
 #include <memory>
+#include <stdexcept>
 #include <type_traits>
 
 namespace alpaqa {
+
+struct not_implemented_error : std::logic_error {
+    using std::logic_error::logic_error;
+};
 
 /**
  * @class Problem
@@ -24,41 +29,58 @@ namespace alpaqa {
  * \end{aligned} @f]
  */
 struct Problem {
-    unsigned int n; ///< Number of decision variables, dimension of x
-    unsigned int m; ///< Number of constraints, dimension of g(x) and z
-    Box C;          ///< Constraints of the decision variables, @f$ x \in C @f$
-    Box D;          ///< Other constraints, @f$ g(x) \in D @f$
+    /// Number of decision variables, dimension of x
+    unsigned int n;
+    /// Number of constraints, dimension of g(x) and z
+    unsigned int m;
+    /// Constraints of the decision variables, @f$ x \in C @f$
+    Box C{vec::Constant(n, +inf), vec::Constant(n, -inf)};
+    /// Other constraints, @f$ g(x) \in D @f$
+    Box D{vec::Constant(m, +inf), vec::Constant(m, -inf)};
 
-    /// Signature of the function that evaluates the cost @f$ f(x) @f$
+    Problem(unsigned int n, unsigned int m) : n(n), m(m) {}
+    Problem(unsigned int n, unsigned int m, Box C, Box D)
+        : n(n), m(m), C{std::move(C)}, D{std::move(D)} {}
+
+    Problem(const Problem &) = default;
+    Problem &operator=(const Problem &) = default;
+    Problem(Problem &&)                 = default;
+    Problem &operator=(Problem &&) = default;
+
+    virtual std::unique_ptr<Problem> clone() const &;
+    virtual std::unique_ptr<Problem> clone() &&;
+    virtual ~Problem() = default;
+
+    /// @name Basic functions
+    /// @{
+
+    /// Function that evaluates the cost, @f$ f(x) @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
-    using f_sig = real_t(crvec x);
-    /// Signature of the function that evaluates the gradient of the cost
-    /// function @f$ \nabla f(x) @f$
+    virtual real_t eval_f(crvec x) const;
+    /// Function that evaluates the gradient of the cost, @f$ \nabla f(x) @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
     /// @param  [out] grad_fx
     ///         Gradient of cost function @f$ \nabla f(x) \in \mathbb{R}^n @f$
-    using grad_f_sig = void(crvec x, rvec grad_fx);
-    /// Signature of the function that evaluates the constraints @f$ g(x) @f$
+    virtual void eval_grad_f(crvec x, rvec grad_fx) const;
+    /// Function that evaluates the constraints, @f$ g(x) @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
     /// @param  [out] gx
     ///         Value of the constraints @f$ g(x) \in \mathbb{R}^m @f$
-    using g_sig = void(crvec x, rvec gx);
-    /// Signature of the function that evaluates the gradient of the constraints
-    /// times a vector
-    /// @f$ \nabla g(x)\ y @f$
+    virtual void eval_g(crvec x, rvec gx) const;
+    /// Function that evaluates the gradient of the constraints times a vector,
+    /// @f$ \nabla g(x)\,y @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
     /// @param  [in] y
     ///         Vector @f$ y \in \mathbb{R}^m @f$ to multiply the gradient by
     /// @param  [out] grad_gxy
     ///         Gradient of the constraints
-    ///         @f$ \nabla g(x)\ y \in \mathbb{R}^n @f$
-    using grad_g_prod_sig = void(crvec x, crvec y, rvec grad_gxy);
-    /// Signature of the function that evaluates the gradient of one specific
-    /// constraints
+    ///         @f$ \nabla g(x)\,y \in \mathbb{R}^n @f$
+    virtual void eval_grad_g_prod(crvec x, crvec y, rvec grad_gxy) const;
+    /// Function that evaluates the gradient of one specific constraints,
     /// @f$ \nabla g_i(x) @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
@@ -67,10 +89,10 @@ struct Problem {
     /// @param  [out] grad_gi
     ///         Gradient of the constraint
     ///         @f$ \nabla g_i(x) \mathbb{R}^n @f$
-    using grad_gi_sig = void(crvec x, unsigned i, rvec grad_gi);
-    /// Signature of the function that evaluates the Hessian of the Lagrangian
-    /// multiplied by a vector
-    /// @f$ \nabla_{xx}^2L(x, y)\ v @f$
+    virtual void eval_grad_gi(crvec x, unsigned i, rvec grad_gi) const;
+    /// Function that evaluates the Hessian of the Lagrangian multiplied by a
+    /// vector,
+    /// @f$ \nabla_{xx}^2L(x, y)\,v @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
     /// @param  [in] y
@@ -79,9 +101,9 @@ struct Problem {
     ///         Vector to multiply by @f$ v \in \mathbb{R}^n @f$
     /// @param  [out] Hv
     ///         Hessian-vector product
-    ///         @f$ \nabla_{xx}^2 L(x, y)\ v \in \mathbb{R}^{n} @f$
-    using hess_L_prod_sig = void(crvec x, crvec y, crvec v, rvec Hv);
-    /// Signature of the function that evaluates the Hessian of the Lagrangian
+    ///         @f$ \nabla_{xx}^2 L(x, y)\,v \in \mathbb{R}^{n} @f$
+    virtual void eval_hess_L_prod(crvec x, crvec y, crvec v, rvec Hv) const;
+    /// Function that evaluates the Hessian of the Lagrangian,
     /// @f$ \nabla_{xx}^2L(x, y) @f$
     /// @param  [in] x
     ///         Decision variable @f$ x \in \mathbb{R}^n @f$
@@ -89,125 +111,305 @@ struct Problem {
     ///         Lagrange multipliers @f$ y \in \mathbb{R}^m @f$
     /// @param  [out] H
     ///         Hessian @f$ \nabla_{xx}^2 L(x, y) \in \mathbb{R}^{n\times n} @f$
-    using hess_L_sig = void(crvec x, crvec y, rmat H);
+    virtual void eval_hess_L(crvec x, crvec y, rmat H) const;
 
-    /// Cost function @f$ f(x) @f$
-    std::function<f_sig> f;
-    /// Gradient of the cost function @f$ \nabla f(x) @f$
-    std::function<grad_f_sig> grad_f;
-    /// Constraint function @f$ g(x) @f$
-    std::function<g_sig> g;
-    /// Gradient of the constraint function times vector @f$ \nabla g(x)\ y @f$
-    std::function<grad_g_prod_sig> grad_g_prod;
-    /// Gradient of a specific constraint @f$ \nabla g_i(x) @f$
-    std::function<grad_gi_sig> grad_gi;
-    /// Hessian of the Lagrangian function times vector
-    /// @f$ \nabla_{xx}^2 L(x, y)\ v @f$
-    std::function<hess_L_prod_sig> hess_L_prod;
-    /// Hessian of the Lagrangian function @f$ \nabla_{xx}^2 L(x, y) @f$
-    std::function<hess_L_sig> hess_L;
+    /// @}
 
-    Problem() = default;
-    Problem(unsigned int n, unsigned int m)
-        : n(n), m(m), C{vec::Constant(n, +inf), vec::Constant(n, -inf)},
-          D{vec::Constant(m, +inf), vec::Constant(m, -inf)} {}
-    Problem(unsigned n, unsigned int m, Box C, Box D, std::function<f_sig> f,
-            std::function<grad_f_sig> grad_f, std::function<g_sig> g,
-            std::function<grad_g_prod_sig> grad_g_prod,
-            std::function<grad_gi_sig> grad_gi,
-            std::function<hess_L_prod_sig> hess_L_prod,
-            std::function<hess_L_sig> hess_L)
-        : n(n), m(m), C(std::move(C)), D(std::move(D)), f(std::move(f)),
-          grad_f(std::move(grad_f)), g(std::move(g)),
-          grad_g_prod(std::move(grad_g_prod)), grad_gi(std::move(grad_gi)),
-          hess_L_prod(std::move(hess_L_prod)), hess_L(std::move(hess_L)) {}
+    /// @name Combined gradients
+    /// @{
+
+    /// Evaluate both @f$ f(x) @f$ and its gradient, @f$ \nabla f(x) @f$.
+    virtual real_t eval_f_grad_f(crvec x, rvec grad_fx) const;
+    /// Evaluate both @f$ g(x) @f$ and its gradient times a vector,
+    /// @f$ \nabla g(x)\,y @f$.
+    virtual void eval_g_grad_g_prod(crvec x, crvec y, rvec g,
+                                    rvec grad_gxy) const;
+
+    /// @}
+
+    /// @name Augmented Lagrangians
+    /// @{
+
+    /// Calculate both ψ(x) and the vector ŷ that can later be used to compute
+    /// ∇ψ.
+    /// @f[ \psi(x^k) = f(x^k) + \frac{\rho}{2}
+    ///   \text{dist}^2\left(g(x^k) + \rho^{-1}y,\;D\right) @f]
+    /// @f[ \hat y = \rho\, \left(g(x^k) + \rho^{-1}y - \Pi_D\left(g(x^k)
+    ///   + \rho^{-1}y\right)\right) @f]
+    virtual real_t eval_ψ_ŷ(crvec x,  ///< [in]  Decision variable @f$ x @f$
+                            crvec y,  ///< [in]  Lagrange multipliers @f$ y @f$
+                            real_t ρ, ///< [in]  Penalty factor @f$ \rho @f$
+                            rvec ŷ    ///< [out] @f$ \hat y @f$
+    ) const;
+    /// Calculate both ψ(x) and the vector ŷ that can later be used to compute
+    /// ∇ψ.
+    /// @f[ \psi(x^k) = f(x^k) + \frac{1}{2}
+    ///   \text{dist}_\Sigma^2\left(g(x^k) + \Sigma^{-1}y,\;D\right) @f]
+    /// @f[ \hat y = \Sigma\, \left(g(x^k) + \Sigma^{-1}y - \Pi_D\left(g(x^k)
+    ///   + \Sigma^{-1}y\right)\right) @f]
+    virtual real_t eval_ψ_ŷ(crvec x, ///< [in]  Decision variable @f$ x @f$
+                            crvec y, ///< [in]  Lagrange multipliers @f$ y @f$
+                            crvec Σ, ///< [in]  Penalty weights @f$ \Sigma @f$
+                            rvec ŷ   ///< [out] @f$ \hat y @f$
+    ) const;
+    /// Calculate ∇ψ(x) using ŷ.
+    virtual void
+    eval_grad_ψ_from_ŷ(crvec x,     ///< [in]  Decision variable @f$ x @f$
+                       crvec ŷ,     ///< [in]  @f$ \hat y @f$
+                       rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
+                       rvec work_n  ///<       Dimension @f$ n @f$
+    ) const;
+    /// Calculate both ψ(x) and its gradient ∇ψ(x).
+    /// @f[ \psi(x^k) = f(x^k) + \frac{\rho}{2}
+    /// \text{dist}^2\left(g(x^k) + \rho^{-1}y,\;D\right) @f]
+    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
+    virtual real_t
+    eval_ψ_grad_ψ(crvec x,     ///< [in]  Decision variable @f$ x @f$
+                  crvec y,     ///< [in]  Lagrange multipliers @f$ y @f$
+                  real_t ρ,    ///< [in]  Penalty factor @f$ \rho @f$
+                  rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
+                  rvec work_n, ///<       Dimension @f$ n @f$
+                  rvec work_m  ///<       Dimension @f$ m @f$
+    ) const;
+    /// Calculate both ψ(x) and its gradient ∇ψ(x).
+    /// @f[ \psi(x^k) = f(x^k) + \frac{1}{2}
+    /// \text{dist}_\Sigma^2\left(g(x^k) + \Sigma^{-1}y,\;D\right) @f]
+    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
+    virtual real_t
+    eval_ψ_grad_ψ(crvec x,     ///< [in]  Decision variable @f$ x @f$
+                  crvec y,     ///< [in]  Lagrange multipliers @f$ y @f$
+                  crvec Σ,     ///< [in]  Penalty weights @f$ \Sigma @f$
+                  rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
+                  rvec work_n, ///<       Dimension @f$ n @f$
+                  rvec work_m  ///<       Dimension @f$ m @f$
+    ) const;
+    /// Calculate the gradient ∇ψ(x).
+    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
+    virtual void eval_grad_ψ(crvec x,  ///< [in]  Decision variable @f$ x @f$
+                             crvec y,  ///< [in]  Lagrange multipliers @f$ y @f$
+                             real_t ρ, ///< [in]  Penalty factor @f$ \rho @f$
+                             rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
+                             rvec work_n, ///<       Dimension @f$ n @f$
+                             rvec work_m  ///<       Dimension @f$ m @f$
+    ) const;
+    /// Calculate the gradient ∇ψ(x).
+    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
+    virtual void eval_grad_ψ(crvec x, ///< [in]  Decision variable @f$ x @f$
+                             crvec y, ///< [in]  Lagrange multipliers @f$ y @f$
+                             crvec Σ, ///< [in]  Penalty weights @f$ \Sigma @f$
+                             rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
+                             rvec work_n, ///<       Dimension @f$ n @f$
+                             rvec work_m  ///<       Dimension @f$ m @f$
+    ) const;
+
+    /// @}
+
+    /// @name
+    /// @{
+
+    /// Calculate the intermediate results ŷ and dᵀŷ that can later be used to
+    /// compute ψ(x) and ∇ψ(x).
+    /// @f[ d = g(x^k) + \rho^{-1}y - \Pi_D\left(g(x^k)
+    ///   + \rho^{-1}y\right) @f]
+    /// @f[ \hat y = \rho\,d = \rho\, \left(g(x^k) + \rho^{-1}y -
+    /// \Pi_D\left(g(x^k) + \rho^{-1}y\right)\right) @f]
+    real_t eval_ŷ_dᵀŷ(crvec x,  ///< [in]  Decision variable @f$ x @f$
+                      crvec y,  ///< [in]  Lagrange multipliers @f$ y @f$
+                      real_t ρ, ///< [in]  Penalty factor @f$ \rho @f$
+                      rvec ŷ    ///< [out] @f$ \hat y @f$
+    ) const;
+    /// Calculate the intermediate results ŷ and dᵀŷ that can later be used to
+    /// compute ψ(x) and ∇ψ(x).
+    /// @f[ d = g(x^k) + \Sigma^{-1}y - \Pi_D\left(g(x^k)
+    ///   + \Sigma^{-1}y\right) @f]
+    /// @f[ \hat y = \Sigma\,d = \Sigma\, \left(g(x^k) + \Sigma^{-1}y -
+    /// \Pi_D\left(g(x^k) + \Sigma^{-1}y\right)\right) @f]
+    real_t eval_ŷ_dᵀŷ(crvec x, ///< [in]  Decision variable @f$ x @f$
+                      crvec y, ///< [in]  Lagrange multipliers @f$ y @f$
+                      crvec Σ, ///< [in]  Penalty weights @f$ \Sigma @f$
+                      rvec ŷ   ///< [out] @f$ \hat y @f$
+    ) const;
+
+    /// @}
 };
 
-class ParamWrapper {
-  public:
-    ParamWrapper(unsigned p) : param(vec::Constant(p, NaN)) {}
+struct LambdaProblem : Problem {
+    using Problem::Problem;
 
-    vec param;
+    std::function<real_t(crvec)> f;
+    std::function<void(crvec, rvec)> grad_f;
+    std::function<void(crvec, rvec)> g;
+    std::function<void(crvec, crvec, rvec)> grad_g_prod;
+    std::function<void(crvec, unsigned, rvec)> grad_gi;
+    std::function<void(crvec, crvec, crvec, rvec)> hess_L_prod;
+    std::function<void(crvec, crvec, rmat)> hess_L;
 
-    virtual ~ParamWrapper()                             = default;
-    virtual void wrap(Problem &)                        = 0;
-    virtual std::shared_ptr<ParamWrapper> clone() const = 0;
+    real_t eval_f(crvec x) const override { return f(x); }
+    void eval_grad_f(crvec x, rvec grad_fx) const override {
+        return grad_f(x, grad_fx);
+    }
+    void eval_g(crvec x, rvec gx) const override { return g(x, gx); }
+    void eval_grad_g_prod(crvec x, crvec y, rvec grad_gxy) const override {
+        return grad_g_prod(x, y, grad_gxy);
+    }
+    void eval_grad_gi(crvec x, unsigned int i, rvec gr_gi) const override {
+        return grad_gi(x, i, gr_gi);
+    }
+    void eval_hess_L_prod(crvec x, crvec y, crvec v, rvec Hv) const override {
+        return hess_L_prod(x, y, v, Hv);
+    }
+    void eval_hess_L(crvec x, crvec y, rmat H) const override {
+        return hess_L(x, y, H);
+    }
+
+    LambdaProblem(const LambdaProblem &) = default;
+    LambdaProblem &operator=(const LambdaProblem &) = default;
+    LambdaProblem(LambdaProblem &&)                 = default;
+    LambdaProblem &operator=(LambdaProblem &&) = default;
+
+    std::unique_ptr<Problem> clone() const & override {
+        return std::unique_ptr<LambdaProblem>(new LambdaProblem(*this));
+    }
+    std::unique_ptr<Problem> clone() && override {
+        return std::unique_ptr<LambdaProblem>(
+            new LambdaProblem(std::move(*this)));
+    }
 };
 
 class ProblemWithParam : public Problem {
   public:
     using Problem::Problem;
-    explicit ProblemWithParam(const ProblemWithParam &o)
-        : Problem(o), wrapper(o.wrapper ? o.wrapper->clone() : nullptr) {
-        wrapper->wrap(*this);
+
+    void set_param(vec p) {
+        assert(p.size() == param.size());
+        param = std::move(p);
     }
-    ProblemWithParam &operator=(const ProblemWithParam &o) {
-        static_cast<Problem &>(*this) = static_cast<const Problem &>(o);
-        if (o.wrapper) {
-            this->wrapper = o.wrapper->clone();
-            this->wrapper->wrap(*this);
-        }
-        return *this;
-    }
-    ProblemWithParam(ProblemWithParam &&) = default;
+    vec &get_param() { return param; }
+    const vec &get_param() const { return param; }
+
+    vec param;
+
+    ProblemWithParam(const ProblemWithParam &) = default;
+    ProblemWithParam &operator=(const ProblemWithParam &) = default;
+    ProblemWithParam(ProblemWithParam &&)                 = default;
     ProblemWithParam &operator=(ProblemWithParam &&) = default;
 
-    void set_param(crvec p) {
-        assert(p.size() == wrapper->param.size());
-        wrapper->param = p;
+    std::unique_ptr<Problem> clone() const & override {
+        return std::unique_ptr<ProblemWithParam>(new ProblemWithParam(*this));
     }
-    void set_param(vec &&p) {
-        assert(p.size() == wrapper->param.size());
-        wrapper->param = std::move(p);
+    std::unique_ptr<Problem> clone() && override {
+        return std::unique_ptr<ProblemWithParam>(
+            new ProblemWithParam(std::move(*this)));
     }
-    vec &get_param() { return wrapper->param; }
-    const vec &get_param() const { return wrapper->param; }
+};
 
-    std::shared_ptr<ParamWrapper> wrapper;
+struct LambdaProblemWithParam : ProblemWithParam {
+    using ProblemWithParam::ProblemWithParam;
+
+    std::function<real_t(crvec, crvec)> f;
+    std::function<void(crvec, crvec, rvec)> grad_f;
+    std::function<void(crvec, crvec, rvec)> g;
+    std::function<void(crvec, crvec, crvec, rvec)> grad_g_prod;
+    std::function<void(crvec, crvec, unsigned, rvec)> grad_gi;
+    std::function<void(crvec, crvec, crvec, crvec, rvec)> hess_L_prod;
+    std::function<void(crvec, crvec, crvec, rmat)> hess_L;
+
+    real_t eval_f(crvec x) const override { return f(x, param); }
+    void eval_grad_f(crvec x, rvec grad_fx) const override {
+        return grad_f(x, param, grad_fx);
+    }
+    void eval_g(crvec x, rvec gx) const override { return g(x, param, gx); }
+    void eval_grad_g_prod(crvec x, crvec y, rvec grad_gxy) const override {
+        return grad_g_prod(x, param, y, grad_gxy);
+    }
+    void eval_grad_gi(crvec x, unsigned int i, rvec gr_gi) const override {
+        return grad_gi(x, param, i, gr_gi);
+    }
+    void eval_hess_L_prod(crvec x, crvec y, crvec v, rvec Hv) const override {
+        return hess_L_prod(x, param, y, v, Hv);
+    }
+    void eval_hess_L(crvec x, crvec y, rmat H) const override {
+        return hess_L(x, param, y, H);
+    }
+
+    LambdaProblemWithParam(const LambdaProblemWithParam &) = default;
+    LambdaProblemWithParam &operator=(const LambdaProblemWithParam &) = default;
+    LambdaProblemWithParam(LambdaProblemWithParam &&)                 = default;
+    LambdaProblemWithParam &operator=(LambdaProblemWithParam &&) = default;
+
+    std::unique_ptr<Problem> clone() const & override {
+        return std::unique_ptr<LambdaProblemWithParam>(
+            new LambdaProblemWithParam(*this));
+    }
+    std::unique_ptr<Problem> clone() && override {
+        return std::unique_ptr<LambdaProblemWithParam>(
+            new LambdaProblemWithParam(std::move(*this)));
+    }
 };
 
 struct EvalCounter {
     unsigned f{};
     unsigned grad_f{};
+    unsigned f_grad_f{};
     unsigned g{};
     unsigned grad_g_prod{};
+    unsigned g_grad_g_prod{};
     unsigned grad_gi{};
     unsigned hess_L_prod{};
     unsigned hess_L{};
+    unsigned ψ{};
+    unsigned grad_ψ{};
+    unsigned ψ_grad_ψ{};
 
     struct EvalTimer {
         std::chrono::nanoseconds f{};
         std::chrono::nanoseconds grad_f{};
+        std::chrono::nanoseconds f_grad_f{};
         std::chrono::nanoseconds g{};
         std::chrono::nanoseconds grad_g_prod{};
+        std::chrono::nanoseconds g_grad_g_prod{};
         std::chrono::nanoseconds grad_gi{};
         std::chrono::nanoseconds hess_L_prod{};
         std::chrono::nanoseconds hess_L{};
+        std::chrono::nanoseconds ψ{};
+        std::chrono::nanoseconds grad_ψ{};
+        std::chrono::nanoseconds ψ_grad_ψ{};
     } time;
 
     void reset() { *this = {}; }
 };
 
-inline EvalCounter &operator+=(EvalCounter &a, const EvalCounter &b) {
-    a.f += b.f;
-    a.grad_f += b.grad_f;
-    a.g += b.g;
-    a.grad_g_prod += b.grad_g_prod;
-    a.grad_gi += b.grad_gi;
-    a.hess_L_prod += b.hess_L_prod;
-    a.hess_L += b.hess_L;
-    return a;
-}
-
 inline EvalCounter::EvalTimer &operator+=(EvalCounter::EvalTimer &a,
                                           const EvalCounter::EvalTimer &b) {
     a.f += b.f;
     a.grad_f += b.grad_f;
+    a.f_grad_f += b.f_grad_f;
     a.g += b.g;
     a.grad_g_prod += b.grad_g_prod;
+    a.g_grad_g_prod += b.g_grad_g_prod;
     a.grad_gi += b.grad_gi;
     a.hess_L_prod += b.hess_L_prod;
     a.hess_L += b.hess_L;
+    a.ψ += b.ψ;
+    a.grad_ψ += b.grad_ψ;
+    a.ψ_grad_ψ += b.ψ_grad_ψ;
+    return a;
+}
+
+inline EvalCounter &operator+=(EvalCounter &a, const EvalCounter &b) {
+    a.f += b.f;
+    a.grad_f += b.grad_f;
+    a.f_grad_f += b.f_grad_f;
+    a.g += b.g;
+    a.grad_g_prod += b.grad_g_prod;
+    a.g_grad_g_prod += b.g_grad_g_prod;
+    a.grad_gi += b.grad_gi;
+    a.hess_L_prod += b.hess_L_prod;
+    a.hess_L += b.hess_L;
+    a.ψ += b.ψ;
+    a.grad_ψ += b.grad_ψ;
+    a.ψ_grad_ψ += b.ψ_grad_ψ;
+    a.time += b.time;
     return a;
 }
 
@@ -218,30 +420,60 @@ inline EvalCounter operator+(EvalCounter a, const EvalCounter &b) {
 template <class ProblemT>
 class ProblemWithCounters : public ProblemT {
   public:
-    ProblemWithCounters(ProblemT &&p) : ProblemT(std::move(p)) {
-        attach_counters(*this);
+    static_assert(std::is_base_of_v<Problem, ProblemT>);
+    using ProblemT::ProblemT;
+
+    ProblemWithCounters(const ProblemT &p) : ProblemT{p} {}
+    ProblemWithCounters(ProblemT &&p) : ProblemT{std::move(p)} {}
+
+    std::unique_ptr<Problem> clone() const & override {
+        if constexpr (std::is_copy_constructible_v<ProblemT>) {
+            return std::unique_ptr<ProblemWithCounters>(
+                new ProblemWithCounters(*this));
+        } else {
+            throw std::logic_error("ProblemWithCounters<" +
+                                   std::string(typeid(ProblemT).name()) +
+                                   "> cannot be cloned");
+        }
     }
-    ProblemWithCounters(const ProblemT &p) : ProblemT(p) {
-        attach_counters(*this);
+    std::unique_ptr<Problem> clone() && override {
+        if constexpr (std::is_copy_constructible_v<ProblemT>) {
+            return std::unique_ptr<ProblemWithCounters>(
+                new ProblemWithCounters(std::move(*this)));
+        } else {
+            throw std::logic_error("ProblemWithCounters<" +
+                                   std::string(typeid(ProblemT).name()) +
+                                   "> cannot be cloned");
+        }
     }
 
-    ProblemWithCounters(const ProblemWithCounters &) = delete;
-    ProblemWithCounters &operator=(const ProblemWithCounters &) = delete;
-    ProblemWithCounters(ProblemWithCounters &&)                 = default;
-    ProblemWithCounters &operator=(ProblemWithCounters &&) = default;
+    real_t eval_f(crvec x) const override;
+    void eval_grad_f(crvec x, rvec grad_fx) const override;
+    void eval_g(crvec x, rvec gx) const override;
+    void eval_grad_g_prod(crvec x, crvec y, rvec grad_gxy) const override;
+    void eval_grad_gi(crvec x, unsigned i, rvec grad_gi) const override;
+    void eval_hess_L_prod(crvec x, crvec y, crvec v, rvec Hv) const override;
+    void eval_hess_L(crvec x, crvec y, rmat H) const override;
 
-  public:
-    std::shared_ptr<EvalCounter> evaluations = std::make_shared<EvalCounter>();
+    real_t eval_f_grad_f(crvec x, rvec grad_fx) const override;
+    void eval_g_grad_g_prod(crvec x, crvec y, rvec gx,
+                            rvec grad_gxy) const override;
+
+    real_t eval_ψ_ŷ(crvec x, crvec y, real_t ρ, rvec ŷ) const override;
+    real_t eval_ψ_ŷ(crvec x, crvec y, crvec Σ, rvec ŷ) const override;
+    void eval_grad_ψ_from_ŷ(crvec x, crvec ŷ, rvec grad_ψ,
+                            rvec work_n) const override;
+
+    real_t eval_ψ_grad_ψ(crvec x, crvec y, real_t ρ, rvec grad_ψ, rvec work_n,
+                         rvec work_m) const override;
+    real_t eval_ψ_grad_ψ(crvec x, crvec y, crvec Σ, rvec grad_ψ, rvec work_n,
+                         rvec work_m) const override;
+
+    mutable EvalCounter evaluations;
 
   private:
-    static void attach_counters(ProblemWithCounters &);
-};
-
-template <class ProblemT>
-void ProblemWithCounters<ProblemT>::attach_counters(
-    ProblemWithCounters<ProblemT> &wc) {
-
-    const static auto timed = [](auto &time, const auto &f) -> decltype(f()) {
+    template <class TimeT, class FunT>
+    static auto timed(TimeT &time, const FunT &f) -> decltype(f()) {
         if constexpr (std::is_same_v<decltype(f()), void>) {
             auto t0 = std::chrono::steady_clock::now();
             f();
@@ -254,59 +486,121 @@ void ProblemWithCounters<ProblemT>::attach_counters(
             time += t1 - t0;
             return res;
         }
-    };
+    }
+};
 
-    wc.f = [ev{wc.evaluations}, f{std::move(wc.f)}](crvec x) {
-        ++ev->f;
-        return timed(ev->time.f, [&] { return f(x); });
-    };
-    wc.grad_f = [ev{wc.evaluations}, grad_f{std::move(wc.grad_f)}](crvec x,
-                                                                   rvec grad) {
-        ++ev->grad_f;
-        timed(ev->time.grad_f, [&] { grad_f(x, grad); });
-    };
-    wc.g = [ev{wc.evaluations}, g{std::move(wc.g)}](crvec x, rvec gx) {
-        ++ev->g;
-        timed(ev->time.g, [&] { g(x, gx); });
-    };
-    wc.grad_g_prod = [ev{wc.evaluations},
-                      grad_g_prod{std::move(wc.grad_g_prod)}](crvec x, crvec y,
-                                                              rvec grad) {
-        ++ev->grad_g_prod;
-        timed(ev->time.grad_g_prod, [&] { grad_g_prod(x, y, grad); });
-    };
-    wc.grad_gi = [ev{wc.evaluations}, grad_gi{std::move(wc.grad_gi)}](
-                     crvec x, unsigned i, rvec grad) {
-        ++ev->grad_g_prod;
-        timed(ev->time.grad_g_prod, [&] { grad_gi(x, i, grad); });
-    };
-    wc.hess_L_prod = [ev{wc.evaluations},
-                      hess_L_prod{std::move(wc.hess_L_prod)}](
-                         crvec x, crvec y, crvec v, rvec Hv) {
-        ++ev->hess_L_prod;
-        timed(ev->time.hess_L_prod, [&] { hess_L_prod(x, y, v, Hv); });
-    };
-    wc.hess_L = [ev{wc.evaluations},
-                 hess_L{std::move(wc.hess_L)}](crvec x, crvec y, rmat H) {
-        ++ev->hess_L;
-        timed(ev->time.hess_L, [&] { hess_L(x, y, H); });
-    };
+template <class ProblemT>
+ProblemWithCounters(ProblemT &) -> ProblemWithCounters<ProblemT>;
+template <class ProblemT>
+ProblemWithCounters(const ProblemT &) -> ProblemWithCounters<ProblemT>;
+template <class ProblemT>
+ProblemWithCounters(ProblemT &&) -> ProblemWithCounters<ProblemT>;
+
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_f(crvec x) const {
+    ++evaluations.f;
+    return timed(evaluations.time.f, [&] { return ProblemT::eval_f(x); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_grad_f(crvec x, rvec grad_fx) const {
+    ++evaluations.grad_f;
+    return timed(evaluations.time.grad_f,
+                 [&] { return ProblemT::eval_grad_f(x, grad_fx); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_g(crvec x, rvec gx) const {
+    ++evaluations.g;
+    return timed(evaluations.time.g, [&] { return ProblemT::eval_g(x, gx); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_grad_g_prod(crvec x, crvec y,
+                                                     rvec grad_gxy) const {
+    ++evaluations.grad_g_prod;
+    return timed(evaluations.time.grad_g_prod,
+                 [&] { return ProblemT::eval_grad_g_prod(x, y, grad_gxy); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_grad_gi(crvec x, unsigned i,
+                                                 rvec grad_gi) const {
+    ++evaluations.grad_gi;
+    return timed(evaluations.time.grad_gi,
+                 [&] { return ProblemT::eval_grad_gi(x, i, grad_gi); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_hess_L_prod(crvec x, crvec y, crvec v,
+                                                     rvec Hv) const {
+    ++evaluations.hess_L_prod;
+    return timed(evaluations.time.hess_L_prod,
+                 [&] { return ProblemT::eval_hess_L_prod(x, y, v, Hv); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_hess_L(crvec x, crvec y,
+                                                rmat H) const {
+    ++evaluations.hess_L;
+    return timed(evaluations.time.hess_L,
+                 [&] { return ProblemT::eval_hess_L(x, y, H); });
 }
 
-/// Moves the state constraints in the set C to the set D, resulting in an
-/// unconstraint inner problem. The new constraints function g becomes the
-/// concatenation of the original g function and the identity function. The
-/// new set D is the cartesian product of the original D × C.
-class ProblemOnlyD : public Problem {
-  public:
-    ProblemOnlyD(Problem &&p) : original(std::move(p)) { transform(); }
-    ProblemOnlyD(const Problem &p) : original(p) { transform(); }
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_f_grad_f(crvec x,
+                                                    rvec grad_fx) const {
+    ++evaluations.f_grad_f;
+    return timed(evaluations.time.f_grad_f,
+                 [&] { return ProblemT::eval_f_grad_f(x, grad_fx); });
+}
 
-  private:
-    Problem original; // TODO: Keeping this copy around is unnecessary.
-    vec work;
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_g_grad_g_prod(crvec x, crvec y,
+                                                       rvec gx,
+                                                       rvec grad_gxy) const {
+    ++evaluations.g_grad_g_prod;
+    return timed(evaluations.time.g_grad_g_prod, [&] {
+        return ProblemT::eval_g_grad_g_prod(x, y, gx, grad_gxy);
+    });
+}
 
-    void transform();
-};
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_ψ_ŷ(crvec x, crvec y, real_t ρ,
+                                               rvec ŷ) const {
+    ++evaluations.ψ;
+    return timed(evaluations.time.ψ,
+                 [&] { return ProblemT::eval_ψ_ŷ(x, y, ρ, ŷ); });
+}
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_ψ_ŷ(crvec x, crvec y, crvec Σ,
+                                               rvec ŷ) const {
+    ++evaluations.ψ;
+    return timed(evaluations.time.ψ,
+                 [&] { return ProblemT::eval_ψ_ŷ(x, y, Σ, ŷ); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_grad_ψ_from_ŷ(crvec x, crvec ŷ,
+                                                       rvec grad_ψ,
+                                                       rvec work_n) const {
+    ++evaluations.grad_ψ;
+    return timed(evaluations.time.grad_ψ, [&] {
+        return ProblemT::eval_grad_ψ_from_ŷ(x, ŷ, grad_ψ, work_n);
+    });
+}
+
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_ψ_grad_ψ(crvec x, crvec y, real_t ρ,
+                                                    rvec grad_ψ, rvec work_n,
+                                                    rvec work_m) const {
+    ++evaluations.ψ_grad_ψ;
+    return timed(evaluations.time.ψ_grad_ψ, [&] {
+        return ProblemT::eval_ψ_grad_ψ(x, y, ρ, grad_ψ, work_n, work_m);
+    });
+}
+
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_ψ_grad_ψ(crvec x, crvec y, crvec Σ,
+                                                    rvec grad_ψ, rvec work_n,
+                                                    rvec work_m) const {
+    ++evaluations.ψ_grad_ψ;
+    return timed(evaluations.time.ψ_grad_ψ, [&] {
+        return ProblemT::eval_ψ_grad_ψ(x, y, Σ, grad_ψ, work_n, work_m);
+    });
+}
 
 } // namespace alpaqa
