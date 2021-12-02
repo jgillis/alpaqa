@@ -26,7 +26,8 @@ int main(int argc, char *argv[]) {
         so_name = argv[1];
 
     // Load the problem (with 3 decision variables and 1 general constraint)
-    auto &&p = alpaqa::load_CasADi_problem(so_name, 3, 1);
+    alpaqa::ProblemWithCounters p =
+        alpaqa::CasADiProblem(so_name, 3, 1);
 
     // Specify the bounds
     p.C.upperbound = vec::Constant(3, inf);
@@ -62,6 +63,9 @@ int main(int argc, char *argv[]) {
     vec y(1);
     y << 1;
 
+    // Parameter
+    p.param(0) = 100;
+
     // Solve the problem
     auto stats = solver(p, y, x);
 
@@ -74,5 +78,7 @@ int main(int argc, char *argv[]) {
     std::cout << "g = " << g.transpose() << std::endl;
     std::cout << "f = " << p.eval_f(x) << std::endl;
     std::cout << "inner: " << stats.inner.iterations << std::endl;
-    std::cout << "outer: " << stats.outer_iterations << std::endl;
+    std::cout << "outer: " << stats.outer_iterations << std::endl << std::endl;
+
+    std::cout << p.evaluations << std::endl;
 }

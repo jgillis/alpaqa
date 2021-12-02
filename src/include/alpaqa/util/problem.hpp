@@ -5,6 +5,7 @@
 #include <cassert>
 #include <chrono>
 #include <functional>
+#include <iosfwd>
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
@@ -115,37 +116,32 @@ struct Problem {
 
     /// @}
 
-    /// @name Combined gradients
+    /// @name Combined evaluations
     /// @{
 
     /// Evaluate both @f$ f(x) @f$ and its gradient, @f$ \nabla f(x) @f$.
     virtual real_t eval_f_grad_f(crvec x, rvec grad_fx) const;
-    /// Evaluate both @f$ g(x) @f$ and its gradient times a vector,
-    /// @f$ \nabla g(x)\,y @f$.
-    virtual void eval_g_grad_g_prod(crvec x, crvec y, rvec g,
-                                    rvec grad_gxy) const;
+    /// Evaluate both @f$ f(x) @f$ and @f$ g(x) @f$.
+    virtual real_t eval_f_g(crvec x, rvec g) const;
+    /// Evaluate @f$ f(x) @f$, its gradient @f$ \nabla f(x) @f$ and @f$ g(x) @f$.
+    virtual real_t eval_f_grad_f_g(crvec x, rvec grad_fx, rvec g) const;
+    /// Evaluate both @f$ \nabla f(x) @f$ and @f$ \nabla g(x)\,y @f$.
+    virtual void eval_grad_f_grad_g_prod(crvec x, crvec y, rvec grad_f,
+                                         rvec grad_gxy) const;
+    /// Evaluate the gradient of the Lagrangian
+    /// @f$ \nabla_x L(x, y) = \nabla f(x) + \nabla g(x)\,y @f$
+    virtual void eval_grad_L(crvec x, crvec y, rvec grad_L, rvec work_n) const;
 
     /// @}
 
-    /// @name Augmented Lagrangians
+    /// @name Augmented Lagrangian
     /// @{
 
     /// Calculate both ψ(x) and the vector ŷ that can later be used to compute
     /// ∇ψ.
-    /// @f[ \psi(x^k) = f(x^k) + \frac{\rho}{2}
-    ///   \text{dist}^2\left(g(x^k) + \rho^{-1}y,\;D\right) @f]
-    /// @f[ \hat y = \rho\, \left(g(x^k) + \rho^{-1}y - \Pi_D\left(g(x^k)
-    ///   + \rho^{-1}y\right)\right) @f]
-    virtual real_t eval_ψ_ŷ(crvec x,  ///< [in]  Decision variable @f$ x @f$
-                            crvec y,  ///< [in]  Lagrange multipliers @f$ y @f$
-                            real_t ρ, ///< [in]  Penalty factor @f$ \rho @f$
-                            rvec ŷ    ///< [out] @f$ \hat y @f$
-    ) const;
-    /// Calculate both ψ(x) and the vector ŷ that can later be used to compute
-    /// ∇ψ.
-    /// @f[ \psi(x^k) = f(x^k) + \frac{1}{2}
-    ///   \text{dist}_\Sigma^2\left(g(x^k) + \Sigma^{-1}y,\;D\right) @f]
-    /// @f[ \hat y = \Sigma\, \left(g(x^k) + \Sigma^{-1}y - \Pi_D\left(g(x^k)
+    /// @f[ \psi(x) = f(x) + \tfrac{1}{2}
+    ///   \text{dist}_\Sigma^2\left(g(x) + \Sigma^{-1}y,\;D\right) @f]
+    /// @f[ \hat y = \Sigma\, \left(g(x) + \Sigma^{-1}y - \Pi_D\left(g(x)
     ///   + \Sigma^{-1}y\right)\right) @f]
     virtual real_t eval_ψ_ŷ(crvec x, ///< [in]  Decision variable @f$ x @f$
                             crvec y, ///< [in]  Lagrange multipliers @f$ y @f$
@@ -159,39 +155,6 @@ struct Problem {
                        rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
                        rvec work_n  ///<       Dimension @f$ n @f$
     ) const;
-    /// Calculate both ψ(x) and its gradient ∇ψ(x).
-    /// @f[ \psi(x^k) = f(x^k) + \frac{\rho}{2}
-    /// \text{dist}^2\left(g(x^k) + \rho^{-1}y,\;D\right) @f]
-    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
-    virtual real_t
-    eval_ψ_grad_ψ(crvec x,     ///< [in]  Decision variable @f$ x @f$
-                  crvec y,     ///< [in]  Lagrange multipliers @f$ y @f$
-                  real_t ρ,    ///< [in]  Penalty factor @f$ \rho @f$
-                  rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
-                  rvec work_n, ///<       Dimension @f$ n @f$
-                  rvec work_m  ///<       Dimension @f$ m @f$
-    ) const;
-    /// Calculate both ψ(x) and its gradient ∇ψ(x).
-    /// @f[ \psi(x^k) = f(x^k) + \frac{1}{2}
-    /// \text{dist}_\Sigma^2\left(g(x^k) + \Sigma^{-1}y,\;D\right) @f]
-    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
-    virtual real_t
-    eval_ψ_grad_ψ(crvec x,     ///< [in]  Decision variable @f$ x @f$
-                  crvec y,     ///< [in]  Lagrange multipliers @f$ y @f$
-                  crvec Σ,     ///< [in]  Penalty weights @f$ \Sigma @f$
-                  rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
-                  rvec work_n, ///<       Dimension @f$ n @f$
-                  rvec work_m  ///<       Dimension @f$ m @f$
-    ) const;
-    /// Calculate the gradient ∇ψ(x).
-    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
-    virtual void eval_grad_ψ(crvec x,  ///< [in]  Decision variable @f$ x @f$
-                             crvec y,  ///< [in]  Lagrange multipliers @f$ y @f$
-                             real_t ρ, ///< [in]  Penalty factor @f$ \rho @f$
-                             rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
-                             rvec work_n, ///<       Dimension @f$ n @f$
-                             rvec work_m  ///<       Dimension @f$ m @f$
-    ) const;
     /// Calculate the gradient ∇ψ(x).
     /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
     virtual void eval_grad_ψ(crvec x, ///< [in]  Decision variable @f$ x @f$
@@ -201,34 +164,34 @@ struct Problem {
                              rvec work_n, ///<       Dimension @f$ n @f$
                              rvec work_m  ///<       Dimension @f$ m @f$
     ) const;
+    /// Calculate both ψ(x) and its gradient ∇ψ(x).
+    /// @f[ \psi(x) = f(x) + \tfrac{1}{2}
+    /// \text{dist}_\Sigma^2\left(g(x) + \Sigma^{-1}y,\;D\right) @f]
+    /// @f[ \nabla \psi(x) = \nabla f(x) + \nabla g(x)\,\hat y(x) @f]
+    virtual real_t
+    eval_ψ_grad_ψ(crvec x,     ///< [in]  Decision variable @f$ x @f$
+                  crvec y,     ///< [in]  Lagrange multipliers @f$ y @f$
+                  crvec Σ,     ///< [in]  Penalty weights @f$ \Sigma @f$
+                  rvec grad_ψ, ///< [out] @f$ \nabla \psi(x) @f$
+                  rvec work_n, ///<       Dimension @f$ n @f$
+                  rvec work_m  ///<       Dimension @f$ m @f$
+    ) const;
 
     /// @}
 
-    /// @name
+    /// @name Helpers
     /// @{
 
-    /// Calculate the intermediate results ŷ and dᵀŷ that can later be used to
-    /// compute ψ(x) and ∇ψ(x).
-    /// @f[ d = g(x^k) + \rho^{-1}y - \Pi_D\left(g(x^k)
-    ///   + \rho^{-1}y\right) @f]
-    /// @f[ \hat y = \rho\,d = \rho\, \left(g(x^k) + \rho^{-1}y -
-    /// \Pi_D\left(g(x^k) + \rho^{-1}y\right)\right) @f]
-    real_t eval_ŷ_dᵀŷ(crvec x,  ///< [in]  Decision variable @f$ x @f$
-                      crvec y,  ///< [in]  Lagrange multipliers @f$ y @f$
-                      real_t ρ, ///< [in]  Penalty factor @f$ \rho @f$
-                      rvec ŷ    ///< [out] @f$ \hat y @f$
-    ) const;
-    /// Calculate the intermediate results ŷ and dᵀŷ that can later be used to
-    /// compute ψ(x) and ∇ψ(x).
-    /// @f[ d = g(x^k) + \Sigma^{-1}y - \Pi_D\left(g(x^k)
-    ///   + \Sigma^{-1}y\right) @f]
-    /// @f[ \hat y = \Sigma\,d = \Sigma\, \left(g(x^k) + \Sigma^{-1}y -
-    /// \Pi_D\left(g(x^k) + \Sigma^{-1}y\right)\right) @f]
-    real_t eval_ŷ_dᵀŷ(crvec x, ///< [in]  Decision variable @f$ x @f$
-                      crvec y, ///< [in]  Lagrange multipliers @f$ y @f$
-                      crvec Σ, ///< [in]  Penalty weights @f$ \Sigma @f$
-                      rvec ŷ   ///< [out] @f$ \hat y @f$
-    ) const;
+    /// Given g(x), compute the intermediate results ŷ and dᵀŷ that can later be
+    /// used to compute ψ(x) and ∇ψ(x).
+    /// @param[inout]   g_ŷ
+    ///                 Input @f$ g(x) @f$, outputs @f$ \hat y @f$
+    /// @param[in]      y
+    ///                 Lagrange multipliers @f$ y @f$
+    /// @param[in]      Σ
+    ///                 Penalty weights @f$ \Sigma @f$
+    /// @return The inner product @f$ d^\top \hat y @f$
+    real_t calc_ŷ_dᵀŷ(rvec g_ŷ, crvec y, crvec Σ) const;
 
     /// @}
 };
@@ -279,6 +242,8 @@ struct LambdaProblem : Problem {
 class ProblemWithParam : public Problem {
   public:
     using Problem::Problem;
+    ProblemWithParam(unsigned n, unsigned m, unsigned p)
+        : Problem{n, m}, param{vec::Constant(p, NaN)} {}
 
     void set_param(vec p) {
         assert(p.size() == param.size());
@@ -351,47 +316,61 @@ struct EvalCounter {
     unsigned f{};
     unsigned grad_f{};
     unsigned f_grad_f{};
+    unsigned f_g{};
+    unsigned f_grad_f_g{};
+    unsigned grad_f_grad_g_prod{};
     unsigned g{};
     unsigned grad_g_prod{};
-    unsigned g_grad_g_prod{};
     unsigned grad_gi{};
+    unsigned grad_L{};
     unsigned hess_L_prod{};
     unsigned hess_L{};
     unsigned ψ{};
     unsigned grad_ψ{};
+    unsigned grad_ψ_from_ŷ{};
     unsigned ψ_grad_ψ{};
 
     struct EvalTimer {
         std::chrono::nanoseconds f{};
         std::chrono::nanoseconds grad_f{};
         std::chrono::nanoseconds f_grad_f{};
+        std::chrono::nanoseconds f_g{};
+        std::chrono::nanoseconds f_grad_f_g{};
+        std::chrono::nanoseconds grad_f_grad_g_prod{};
         std::chrono::nanoseconds g{};
         std::chrono::nanoseconds grad_g_prod{};
-        std::chrono::nanoseconds g_grad_g_prod{};
         std::chrono::nanoseconds grad_gi{};
+        std::chrono::nanoseconds grad_L{};
         std::chrono::nanoseconds hess_L_prod{};
         std::chrono::nanoseconds hess_L{};
         std::chrono::nanoseconds ψ{};
         std::chrono::nanoseconds grad_ψ{};
+        std::chrono::nanoseconds grad_ψ_from_ŷ{};
         std::chrono::nanoseconds ψ_grad_ψ{};
     } time;
 
     void reset() { *this = {}; }
 };
 
+std::ostream &operator<<(std::ostream &, const EvalCounter &);
+
 inline EvalCounter::EvalTimer &operator+=(EvalCounter::EvalTimer &a,
                                           const EvalCounter::EvalTimer &b) {
     a.f += b.f;
     a.grad_f += b.grad_f;
     a.f_grad_f += b.f_grad_f;
+    a.f_g += b.f_g;
+    a.f_grad_f_g += b.f_grad_f_g;
+    a.grad_f_grad_g_prod += b.grad_f_grad_g_prod;
     a.g += b.g;
     a.grad_g_prod += b.grad_g_prod;
-    a.g_grad_g_prod += b.g_grad_g_prod;
     a.grad_gi += b.grad_gi;
+    a.grad_L += b.grad_L;
     a.hess_L_prod += b.hess_L_prod;
     a.hess_L += b.hess_L;
     a.ψ += b.ψ;
     a.grad_ψ += b.grad_ψ;
+    a.grad_ψ_from_ŷ += b.grad_ψ_from_ŷ;
     a.ψ_grad_ψ += b.ψ_grad_ψ;
     return a;
 }
@@ -400,14 +379,18 @@ inline EvalCounter &operator+=(EvalCounter &a, const EvalCounter &b) {
     a.f += b.f;
     a.grad_f += b.grad_f;
     a.f_grad_f += b.f_grad_f;
+    a.f_g += b.f_g;
+    a.f_grad_f_g += b.f_grad_f_g;
+    a.grad_f_grad_g_prod += b.grad_f_grad_g_prod;
     a.g += b.g;
     a.grad_g_prod += b.grad_g_prod;
-    a.g_grad_g_prod += b.g_grad_g_prod;
     a.grad_gi += b.grad_gi;
+    a.grad_L += b.grad_L;
     a.hess_L_prod += b.hess_L_prod;
     a.hess_L += b.hess_L;
     a.ψ += b.ψ;
     a.grad_ψ += b.grad_ψ;
+    a.grad_ψ_from_ŷ += b.grad_ψ_from_ŷ;
     a.ψ_grad_ψ += b.ψ_grad_ψ;
     a.time += b.time;
     return a;
@@ -456,16 +439,17 @@ class ProblemWithCounters : public ProblemT {
     void eval_hess_L(crvec x, crvec y, rmat H) const override;
 
     real_t eval_f_grad_f(crvec x, rvec grad_fx) const override;
-    void eval_g_grad_g_prod(crvec x, crvec y, rvec gx,
-                            rvec grad_gxy) const override;
+    real_t eval_f_g(crvec x, rvec g) const override;
+    real_t eval_f_grad_f_g(crvec x, rvec grad_fx, rvec g) const override;
+    void eval_grad_f_grad_g_prod(crvec x, crvec y, rvec grad_f,
+                                 rvec grad_gxy) const override;
+    void eval_grad_L(crvec x, crvec y, rvec grad_L, rvec work_n) const override;
 
-    real_t eval_ψ_ŷ(crvec x, crvec y, real_t ρ, rvec ŷ) const override;
     real_t eval_ψ_ŷ(crvec x, crvec y, crvec Σ, rvec ŷ) const override;
     void eval_grad_ψ_from_ŷ(crvec x, crvec ŷ, rvec grad_ψ,
                             rvec work_n) const override;
-
-    real_t eval_ψ_grad_ψ(crvec x, crvec y, real_t ρ, rvec grad_ψ, rvec work_n,
-                         rvec work_m) const override;
+    void eval_grad_ψ(crvec x, crvec y, crvec Σ, rvec grad_ψ, rvec work_n,
+                     rvec work_m) const override;
     real_t eval_ψ_grad_ψ(crvec x, crvec y, crvec Σ, rvec grad_ψ, rvec work_n,
                          rvec work_m) const override;
 
@@ -548,23 +532,33 @@ real_t ProblemWithCounters<ProblemT>::eval_f_grad_f(crvec x,
     return timed(evaluations.time.f_grad_f,
                  [&] { return ProblemT::eval_f_grad_f(x, grad_fx); });
 }
-
 template <class ProblemT>
-void ProblemWithCounters<ProblemT>::eval_g_grad_g_prod(crvec x, crvec y,
-                                                       rvec gx,
-                                                       rvec grad_gxy) const {
-    ++evaluations.g_grad_g_prod;
-    return timed(evaluations.time.g_grad_g_prod, [&] {
-        return ProblemT::eval_g_grad_g_prod(x, y, gx, grad_gxy);
+real_t ProblemWithCounters<ProblemT>::eval_f_g(crvec x, rvec g) const {
+    ++evaluations.f_g;
+    return timed(evaluations.time.f_g,
+                 [&] { return ProblemT::eval_f_g(x, g); });
+}
+template <class ProblemT>
+real_t ProblemWithCounters<ProblemT>::eval_f_grad_f_g(crvec x, rvec grad_fx,
+                                                      rvec g) const {
+    ++evaluations.f_grad_f_g;
+    return timed(evaluations.time.f_grad_f_g,
+                 [&] { return ProblemT::eval_f_grad_f_g(x, grad_fx, g); });
+}
+template <class ProblemT>
+void ProblemWithCounters<ProblemT>::eval_grad_f_grad_g_prod(
+    crvec x, crvec y, rvec grad_f, rvec grad_gxy) const {
+    ++evaluations.grad_f_grad_g_prod;
+    return timed(evaluations.time.grad_f_grad_g_prod, [&] {
+        return ProblemT::eval_grad_f_grad_g_prod(x, y, grad_f, grad_gxy);
     });
 }
-
 template <class ProblemT>
-real_t ProblemWithCounters<ProblemT>::eval_ψ_ŷ(crvec x, crvec y, real_t ρ,
-                                               rvec ŷ) const {
-    ++evaluations.ψ;
-    return timed(evaluations.time.ψ,
-                 [&] { return ProblemT::eval_ψ_ŷ(x, y, ρ, ŷ); });
+void ProblemWithCounters<ProblemT>::eval_grad_L(crvec x, crvec y, rvec grad_L,
+                                                rvec work_n) const {
+    ++evaluations.grad_L;
+    return timed(evaluations.time.grad_L,
+                 [&] { return ProblemT::eval_grad_L(x, y, grad_L, work_n); });
 }
 template <class ProblemT>
 real_t ProblemWithCounters<ProblemT>::eval_ψ_ŷ(crvec x, crvec y, crvec Σ,
@@ -577,22 +571,20 @@ template <class ProblemT>
 void ProblemWithCounters<ProblemT>::eval_grad_ψ_from_ŷ(crvec x, crvec ŷ,
                                                        rvec grad_ψ,
                                                        rvec work_n) const {
-    ++evaluations.grad_ψ;
-    return timed(evaluations.time.grad_ψ, [&] {
+    ++evaluations.grad_ψ_from_ŷ;
+    return timed(evaluations.time.grad_ψ_from_ŷ, [&] {
         return ProblemT::eval_grad_ψ_from_ŷ(x, ŷ, grad_ψ, work_n);
     });
 }
-
 template <class ProblemT>
-real_t ProblemWithCounters<ProblemT>::eval_ψ_grad_ψ(crvec x, crvec y, real_t ρ,
-                                                    rvec grad_ψ, rvec work_n,
-                                                    rvec work_m) const {
-    ++evaluations.ψ_grad_ψ;
-    return timed(evaluations.time.ψ_grad_ψ, [&] {
-        return ProblemT::eval_ψ_grad_ψ(x, y, ρ, grad_ψ, work_n, work_m);
+void ProblemWithCounters<ProblemT>::eval_grad_ψ(crvec x, crvec y, crvec Σ,
+                                                rvec grad_ψ, rvec work_n,
+                                                rvec work_m) const {
+    ++evaluations.grad_ψ;
+    return timed(evaluations.time.grad_ψ, [&] {
+        return ProblemT::eval_grad_ψ(x, y, Σ, grad_ψ, work_n, work_m);
     });
 }
-
 template <class ProblemT>
 real_t ProblemWithCounters<ProblemT>::eval_ψ_grad_ψ(crvec x, crvec y, crvec Σ,
                                                     rvec grad_ψ, rvec work_n,

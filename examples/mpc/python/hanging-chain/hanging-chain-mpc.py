@@ -47,7 +47,7 @@ y_init = cs.SX.sym("y_init", *y_null.shape)  # initial state
 U = cs.SX.sym("U", dim * N_horiz)  # control signals over horizon
 constr_param = cs.SX.sym("c", 3)  # Coefficients of cubic constraint function
 mpc_param = cs.vertcat(y_init, model.params, constr_param)  # all parameters
-U_mat = model.input_to_matrix(U) # Input as dim by N_horiz matrix
+U_mat = model.input_to_matrix(U)  # Input as dim by N_horiz matrix
 
 # Cost
 mpc_sim = model.simulate(N_horiz, y_init, U_mat, model.params)
@@ -76,7 +76,7 @@ constr_coeff = [c, -3 * a * c, 3 * a * a * c + d]
 constr_lb = b - c * a**3 - d * a
 
 # %% NLP formulation
-import panocpy as pa
+import alpaqa as pa
 
 prob = pa.generate_and_compile_casadi_problem(mpc_cost_fun, mpc_constr_fun)
 prob.C.lowerbound = -1 * np.ones((dim * N_horiz, ))
@@ -107,6 +107,7 @@ solver = pa.ALMSolver(
 
 
 class MPCController:
+    tot_time = timedelta()
     tot_it = 0
     failures = 0
     U = np.zeros((N_horiz * dim, ))
@@ -127,6 +128,7 @@ class MPCController:
         print(stats['status'], stats['outer_iterations'],
               stats['inner']['iterations'], stats['elapsed_time'],
               stats['inner_convergence_failures'])
+        self.tot_time += stats['elapsed_time']
         self.tot_it += stats['inner']['iterations']
         self.failures += stats['status'] != pa.SolverStatus.Converged
         # Print the Lagrange multipliers, shows that constraints are active
@@ -152,13 +154,21 @@ for n in range(N_sim):
     y_mpc[:, n] = y_n
 y_mpc = np.hstack((y_dist, y_mpc))
 
-print(controller.tot_it, controller.failures)
+print(controller.tot_it, controller.failures, controller.tot_time)
+print(prob.evaluations)
+print(f'{"g":13}:{prob.evaluations.g:6}: {prob.evaluations.time.g/prob.evaluations.g}')
+print(f'{"grad_L":13}:{prob.evaluations.grad_L:6}: {prob.evaluations.time.grad_L/prob.evaluations.grad_L}')
+print(f'{"ψ":13}:{prob.evaluations.ψ:6}: {prob.evaluations.time.ψ/prob.evaluations.ψ}')
+print(f'{"grad_ψ":13}:{prob.evaluations.grad_ψ:6}: {prob.evaluations.time.grad_ψ/prob.evaluations.grad_ψ}')
+print(f'{"grad_ψ_from_ŷ":13}:{prob.evaluations.grad_ψ_from_ŷ:6}: {prob.evaluations.time.grad_ψ_from_ŷ/prob.evaluations.grad_ψ_from_ŷ}')
+print(f'{"ψ_grad_ψ":13}:{prob.evaluations.ψ_grad_ψ:6}: {prob.evaluations.time.ψ_grad_ψ/prob.evaluations.ψ_grad_ψ}')
 
 # %% Visualize
 
 import matplotlib.pyplot as plt
 import matplotlib as mpl
 from matplotlib import patheffects
+from matplotlib.animation import FuncAnimation
 
 mpl.rcParams['animation.frame_format'] = 'svg'
 
@@ -202,12 +212,12 @@ class Animation:
         return [line, line_ctrl] + self.points
 
 
-ani = mpl.animation.FuncAnimation(fig,
-                                  Animation(),
-                                  interval=1000 * Ts,
-                                  blit=True,
-                                  repeat=True,
-                                  frames=1 + N_dist + N_sim)
+ani = FuncAnimation(fig,
+                    Animation(),
+                    interval=1000 * Ts,
+                    blit=True,
+                    repeat=True,
+                    frames=1 + N_dist + N_sim)
 
 # Export the animation
 out = join(dirname(__file__), '..', '..', '..', '..', 'sphinx', 'source',

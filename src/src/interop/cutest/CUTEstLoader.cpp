@@ -100,6 +100,9 @@ class CUTEstLoader {
         eval_lagr_hess_p        = ncon > 0                         //
                                       ? dlfun<void>("cutest_cdh_") //
                                       : dlfun<void>("cutest_udh_");
+        eval_lagr_grad_p        = ncon > 0                          //
+                                      ? dlfun<void>("cutest_clfg_") //
+                                      : dlfun<void>("cutest_ugr_");
     }
 
     template <class F>
@@ -260,6 +263,24 @@ class CUTEstLoader {
         }
     }
 
+    void eval_lagr_grad(crvec x, crvec y, rvec grad_L) const {
+        assert(x.size() == nvar);
+        assert(y.size() == ncon);
+        assert(grad_L.rows() == nvar);
+        integer status;
+        if (ncon == 0) {
+            call_as<decltype(CUTEST_ugr)>(eval_lagr_grad_p)(
+                &status, &nvar, x.data(), grad_L.data());
+            throw_if_error("Failed to call cutest_ugr", status);
+        } else {
+            logical grad = true;
+            call_as<decltype(CUTEST_clfg)>(eval_lagr_grad_p)(
+                &status, &nvar, &ncon, x.data(), y.data(), work.data(),
+                grad_L.data(), &grad);
+            throw_if_error("Failed to call cutest_clfg", status);
+        }
+    }
+
     unsigned count_box_constraints() const {
         return std::count_if(x_l.data(), x_l.data() + nvar,
                              [](real_t x) { return x > -CUTE_INF; }) +
@@ -353,6 +374,7 @@ class CUTEstLoader {
     void *eval_constr_i_grad_p    = nullptr;
     void *eval_lagr_hess_prod_p   = nullptr;
     void *eval_lagr_hess_p        = nullptr;
+    void *eval_lagr_grad_p        = nullptr;
 };
 
 CUTEstProblem::CUTEstProblem(const char *so_fname, const char *outsdif_fname)
@@ -429,6 +451,11 @@ void CUTEstProblem::eval_hess_L(crvec x, crvec y, rmat H) const {
 real_t CUTEstProblem::eval_f_grad_f(crvec x, rvec grad_fx) const {
     return m == 0 ? impl->eval_objective_and_grad_unconstrained(x, grad_fx)
                   : impl->eval_objective_and_grad_constrained(x, grad_fx);
+}
+void CUTEstProblem::eval_grad_L(crvec x, crvec y, rvec grad_L,
+                                rvec work_n) const {
+    (void)work_n;
+    impl->eval_lagr_grad(x, y, grad_L);
 }
 
 unsigned CUTEstProblem::get_number_box_constraints() const {

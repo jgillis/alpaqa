@@ -11,10 +11,6 @@ namespace alpaqa {
 
 /// Wrapper for CUTEst problems loaded from an external shared library.
 ///
-/// @warning  The lifetime of the wrapper should be at least as long as the
-///           lifetime of the @ref CUTEstProblem::problem member. Do not make
-///           a copy of the problem that could outlive the wrapper.
-///
 /// @ingroup  grp_ExternalProblemLoaders
 class CUTEstProblem : public Problem {
 
@@ -105,6 +101,7 @@ class CUTEstProblem : public Problem {
     void eval_hess_L(crvec x, crvec y, rmat H) const override;
 
     real_t eval_f_grad_f(crvec x, rvec grad_fx) const override;
+    void eval_grad_L(crvec x, crvec y, rvec grad_L, rvec work_n) const override;
 
   private:
     std::unique_ptr<class CUTEstLoader> impl;

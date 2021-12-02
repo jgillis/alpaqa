@@ -100,7 +100,11 @@ if (TARGET casadi)
     set_target_properties(casadi-loader-obj PROPERTIES POSITION_INDEPENDENT_CODE ON)
     add_library(alpaqa::casadi-loader-obj ALIAS casadi-loader-obj)
     add_library(casadi-loader)
-    target_link_libraries(casadi-loader PUBLIC casadi-loader-obj)
+    find_package(Threads REQUIRED)
+    target_link_libraries(casadi-loader
+        PUBLIC
+            casadi-loader-obj
+            Threads::Threads)
     add_library(alpaqa::casadi-loader ALIAS casadi-loader)
 endif()
 

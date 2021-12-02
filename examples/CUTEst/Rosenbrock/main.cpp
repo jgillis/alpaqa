@@ -20,7 +20,8 @@ int main() {
     const char *outsdif_fname = "CUTEst/ROSENBR/OUTSDIF.d";
 
     // Load the problem
-    alpaqa::CUTEstProblem p{so_fname, outsdif_fname};
+    alpaqa::ProblemWithCounters p =
+        alpaqa::CUTEstProblem{so_fname, outsdif_fname};
 
     // Settings for the outer augmented Lagrangian method
     alpaqa::ALMParams almparam;
@@ -61,4 +62,6 @@ int main() {
     std::cout << "f = " << p.eval_f(x) << std::endl;
     std::cout << "inner: " << stats.inner.iterations << std::endl;
     std::cout << "outer: " << stats.outer_iterations << std::endl;
+
+    std::cout << p.evaluations << std::endl;
 }

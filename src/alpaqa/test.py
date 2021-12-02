@@ -56,20 +56,40 @@ grad_gi = lambda x, i: grad_g_prod(x, np.eye(1, m, i))
 Hess_L = cs.Function("Hess_L", [x, λ], [cs.hessian(L, x)[0]])
 Hess_L_prod = cs.Function("Hess_L_prod", [x, λ, v], [hess_prod(L, x, v)])
 
-p = pa.Problem(n, m)
-p.f = f
-p.grad_f = grad_f
-p.g = g
-p.grad_g_prod = grad_g_prod
-p.grad_gi = grad_gi
-p.hess_L = Hess_L
-p.hess_L_prod = Hess_L_prod
-p.D.lowerbound = [-np.inf, 0.5]
-p.D.upperbound = [+np.inf, +np.inf]
+
+class TestProblem(pa.Problem):
+    def __init__(self):
+        pa.Problem.__init__(self, n, m)
+        self.D.lowerbound = [-np.inf, 0.5]
+        self.D.upperbound = [+np.inf, +np.inf]
+
+    def eval_f(self, x):
+        return f(x)
+
+    def eval_grad_f(self, x, grad_fx: np.ndarray):
+        grad_fx[:] = np.ravel(grad_f(x))
+
+    def eval_g(self, x, gg):
+        gg[:] = np.ravel(g(x))
+
+    def eval_grad_g_prod(self, x, y, gg):
+        gg[:] = np.ravel(grad_g_prod(x, y))
+
+    def eval_grad_gi(self, x, i, gg):
+        gg[:] = np.ravel(grad_gi(x, i))
+
+    def eval_hess_L(self, x, y, H):
+        H[:, :] = Hess_L(x, y)
+
+    def eval_hess_L_prod(self, x, y, v, Hv):
+        Hv[:] = np.ravel(Hess_L_prod(x, y, v))
+
+
+p = TestProblem()
 
 x0 = np.array([3, 3])
-y0 = np.zeros((m,))
-Σ = 1e3 * np.ones((m,))
+y0 = np.zeros((m, ))
+Σ = 1e3 * np.ones((m, ))
 ε = 1e-8
 solver = pa.PANOCSolver(
     pa.PANOCParams(max_iter=200, print_interval=1),
@@ -85,7 +105,7 @@ solver = pa.PANOCSolver(
     pa.PANOCParams(max_iter=200, print_interval=1),
     pa.LBFGSParams(memory=5),
 )
-almparams = pa.ALMParams(max_iter=20, print_interval=1, preconditioning=False)
+almparams = pa.ALMParams(max_iter=20, print_interval=1)
 almsolver = pa.ALMSolver(almparams, solver)
 x, y, stats = almsolver(p, x=x0, y=y0)
 
@@ -97,7 +117,7 @@ solver = pa.StructuredPANOCLBFGSSolver(
     pa.StructuredPANOCLBFGSParams(max_iter=200, print_interval=1),
     pa.LBFGSParams(memory=5),
 )
-almparams = pa.ALMParams(max_iter=20, print_interval=1, preconditioning=False)
+almparams = pa.ALMParams(max_iter=20, print_interval=1)
 almsolver = pa.ALMSolver(almparams, solver)
 x, y, stats = almsolver(p, x=x0, y=y0)
 
@@ -130,7 +150,7 @@ class CustomInnerSolver(pa.InnerSolver):
 
 
 solver = CustomInnerSolver()
-almparams = pa.ALMParams(max_iter=20, print_interval=1, preconditioning=False)
+almparams = pa.ALMParams(max_iter=20, print_interval=1)
 almsolver = pa.ALMSolver(almparams, solver)
 x, y, stats = almsolver(p, x=x0, y=y0)
 
@@ -140,7 +160,7 @@ pprint(stats)
 
 try:
     old_x0 = x0
-    x0 = np.zeros((666,))
+    x0 = np.zeros((666, ))
     sol = almsolver(p, x=x0, y=y0)
 except ValueError as e:
     assert e.args[0] == "Length of x does not match problem size problem.n"
@@ -169,7 +189,7 @@ solver = pa.StructuredPANOCLBFGSSolver(
     pa.StructuredPANOCLBFGSParams(max_iter=200, print_interval=1),
     pa.LBFGSParams(memory=5),
 )
-almparams = pa.ALMParams(max_iter=20, print_interval=1, preconditioning=False)
+almparams = pa.ALMParams(max_iter=20, print_interval=1)
 almsolver = pa.ALMSolver(almparams, solver)
 x, y, stats = almsolver(p, x=x0, y=y0)
 
@@ -201,7 +221,7 @@ solver = pa.StructuredPANOCLBFGSSolver(
     pa.StructuredPANOCLBFGSParams(max_iter=200, print_interval=1),
     pa.LBFGSParams(memory=5),
 )
-almparams = pa.ALMParams(max_iter=20, print_interval=1, preconditioning=False)
+almparams = pa.ALMParams(max_iter=20, print_interval=1)
 almsolver = pa.ALMSolver(almparams, solver)
 x, y, stats = almsolver(prob, x=x0, y=y0)
 
@@ -211,38 +231,49 @@ pprint(stats)
 
 # %% Make sure that the problem is copied
 
-prob.param = [1, 2, 3]
-assert np.all(prob.param == [1, 2, 3])
-prob1 = pa.ProblemWithParamWithCounters(prob)
-print(prob.param)
-print(prob1.param)
-assert np.all(prob.param == [1, 2, 3])
-assert np.all(prob1.param == [1, 2, 3])
-prob1.param = [42, 43, 44]
-print(prob.param)
-print(prob1.param)
-assert np.all(prob.param == [1, 2, 3])
-assert np.all(prob1.param == [42, 43, 44])
-print(prob.f([1, 2]))
-print(prob1.f([1, 2]))
-assert prob.f([1, 2]) == 21 / 2
-assert prob1.f([1, 2]) == 390 / 2
-assert prob1.evaluations.f == 2
+if False:
+    prob.param = [1, 2, 3]
+    assert np.all(prob.param == [1, 2, 3])
+    prob1 = pa.ProblemWithParamWithCounters(prob)
+    print(prob.param)
+    print(prob1.param)
+    assert np.all(prob.param == [1, 2, 3])
+    assert np.all(prob1.param == [1, 2, 3])
+    prob1.param = [42, 43, 44]
+    print(prob.param)
+    print(prob1.param)
+    assert np.all(prob.param == [1, 2, 3])
+    assert np.all(prob1.param == [42, 43, 44])
+    print(prob.f([1, 2]))
+    print(prob1.f([1, 2]))
+    assert prob.f([1, 2]) == 21 / 2
+    assert prob1.f([1, 2]) == 390 / 2
+    assert prob1.evaluations.f == 2
 
-prob2 = pa.ProblemWithCounters(prob) # params are not copied!
-print(prob.f([1, 2]))
-print(prob2.f([1, 2]))
-assert prob.f([1, 2]) == 21 / 2
-assert prob2.f([1, 2]) == 21 / 2
-prob.param = [2, 1, 3]
-print(prob.f([1, 2]))
-print(prob2.f([1, 2]))
-assert prob.f([1, 2]) == 18 / 2
-assert prob2.f([1, 2]) == 18 / 2
-assert prob1.evaluations.f == 2
-assert prob2.evaluations.f == 4
+    prob2 = pa.ProblemWithCounters(prob)  # params are not copied!
+    print(prob.f([1, 2]))
+    print(prob2.f([1, 2]))
+    assert prob.f([1, 2]) == 21 / 2
+    assert prob2.f([1, 2]) == 21 / 2
+    prob.param = [2, 1, 3]
+    print(prob.f([1, 2]))
+    print(prob2.f([1, 2]))
+    assert prob.f([1, 2]) == 18 / 2
+    assert prob2.f([1, 2]) == 18 / 2
+    assert prob1.evaluations.f == 2
+    assert prob2.evaluations.f == 4
+else:
+    from copy import copy
+    try:
+        prob1 = copy(prob)
+        assert False
+    except:
+        pass
+    prob1 = prob
 
 # %%
+
+print(prob1.n, prob1.m, prob1.C, prob1.D)
 
 prob1.param = p0
 x, y, stats = almsolver(prob1)  # without initial guess
@@ -252,8 +283,9 @@ print(y)
 pprint(stats)
 print(prob1.evaluations.f)
 print(prob1.evaluations.grad_f)
-print(prob1.evaluations.g)
-print(prob1.evaluations.grad_g_prod)
+print(prob1.evaluations.ψ_grad_ψ)
+print(prob1.evaluations.grad_L)
+print(prob1.evaluations.ψ)
 
 # %%
 
@@ -261,9 +293,8 @@ f = lambda x: float(np.cosh(x) - x * x + x)
 grad_f = lambda x: np.sinh(x) - 2 * x + 1
 C = pa.Box([10], [-2.5])
 x0 = [5]
-x, stats = pa.panoc(
-    f, grad_f, C, x0, 1e-12, pa.PANOCParams(print_interval=1), pa.LBFGSParams()
-)
+x, stats = pa.panoc(f, grad_f, C, x0, 1e-12, pa.PANOCParams(print_interval=1),
+                    pa.LBFGSParams())
 print(x)
 pprint(stats)
 
@@ -283,6 +314,15 @@ try:
     assert False
 except RuntimeError as e:
     print(e)
+
+# %%
+
+p = pa.Problem(2, 2)
+try:
+    p.eval_f(x)
+    assert False
+except NotImplementedError as e:
+    print(type(e), e)
 
 # %%
 

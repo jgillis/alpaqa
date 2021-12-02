@@ -2,3 +2,4 @@ numpy
 casadi
 matplotlib
 breathe
+furo

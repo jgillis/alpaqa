@@ -251,6 +251,5 @@ inline const kwargs_to_struct_table_t<alpaqa::ALMParams>
         {"max_num_retries", &alpaqa::ALMParams::max_num_retries},
         {"max_total_num_retries", &alpaqa::ALMParams::max_total_num_retries},
         {"print_interval", &alpaqa::ALMParams::print_interval},
-        {"preconditioning", &alpaqa::ALMParams::preconditioning},
         {"single_penalty_factor", &alpaqa::ALMParams::single_penalty_factor},
     };

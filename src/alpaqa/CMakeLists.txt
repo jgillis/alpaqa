@@ -6,6 +6,7 @@ execute_process(COMMAND "${Python3_EXECUTABLE}"
     RESULT_VARIABLE ALPAQA_PYBIND11_RESULT)
 
 if (ALPAQA_PYBIND11_RESULT EQUAL 0)
+    message(STATUS "Found pybind11: ${alpaqa_pybind11_include_dir}")
     add_library(pybind11::pybind11 INTERFACE IMPORTED)
     target_include_directories(pybind11::pybind11
         INTERFACE ${alpaqa_pybind11_include_dir})
@@ -48,13 +49,18 @@ if (ALPAQA_PYBIND11_RESULT EQUAL 0)
         find_program(STUBGEN_EXE stubgen REQUIRED)
         set(STUBS_DIR ${CMAKE_CURRENT_BINARY_DIR}/stubs)
         add_custom_command(TARGET _alpaqa POST_BUILD 
-            COMMAND ${STUBGEN_EXE} 
-                    -m alpaqa -m alpaqa.casadi_problem
+            COMMAND
+                ${STUBGEN_EXE} 
+                    -m alpaqa
+                    -m alpaqa.casadi_generator
+                    -m alpaqa.casadi_loader
                     -o ${STUBS_DIR}
             WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/..
             USES_TERMINAL)
-        add_custom_command(TARGET _alpaqa POST_BUILD 
-            COMMAND ${STUBGEN_EXE} 
+        add_custom_command(TARGET _alpaqa POST_BUILD
+            COMMAND 
+                # LD_PRELOAD=$<$<AND:$<BOOL:CMAKE_HOST_UNIX>,$<STREQUAL:SHARED_LIBRARY,$<TARGET_PROPERTY:casadi,TYPE>>>:$<SHELL_PATH:$<TARGET_FILE:casadi>>>
+                ${STUBGEN_EXE} 
                     -m alpaqa._alpaqa
                     -o ${STUBS_DIR}
             WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/..
@@ -66,9 +72,12 @@ if (ALPAQA_PYBIND11_RESULT EQUAL 0)
                 DESTINATION .)
         if (ALPAQA_GEN_STUB)
             install(FILES ${STUBS_DIR}/alpaqa/__init__.pyi
-                          ${STUBS_DIR}/alpaqa/casadi_problem.pyi
+                          ${STUBS_DIR}/alpaqa/casadi_loader/__init__.pyi
+                          ${STUBS_DIR}/alpaqa/casadi_generator/__init__.pyi
                           ${STUBS_DIR}/alpaqa/_alpaqa.pyi
                     DESTINATION .)
         endif()
     endif()
+else()
+    message(WARNING "Could NOT find pybind11.")
 endif()

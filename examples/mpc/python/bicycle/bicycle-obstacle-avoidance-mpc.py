@@ -29,8 +29,7 @@ f, nlp, bounds, n_states, n_inputs, first_input_idx = generate_problem(
 
 # %% Build the problem for PANOC+ALM
 
-import panocpy as pa
-from tempfile import TemporaryDirectory
+import alpaqa as pa
 
 name = "mpcproblem"
 f_prob = cs.Function("f", [nlp["x"], nlp["p"]], [nlp["f"]])
@@ -65,7 +64,6 @@ almparams = pa.ALMParams(
     max_iter=20,
     max_time=timedelta(seconds=1),
     print_interval=1 if verbose else 0,
-    preconditioning=False,
     ε=tol,
     δ=tol,
     Δ=5,

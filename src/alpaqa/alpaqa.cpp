@@ -31,6 +31,7 @@
 
 #include <memory>
 #include <optional>
+#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <tuple>
@@ -129,7 +130,7 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
     options.enable_function_signatures();
     options.enable_user_defined_docstrings();
 
-    m.doc() = "PANOC+ALM solvers"; // TODO
+    m.doc() = "Alpaqa PANOC+ALM solvers"; // TODO
 
 #ifdef VERSION_INFO
     m.attr("__version__") = MACRO_STRINGIFY(VERSION_INFO);
@@ -137,10 +138,14 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
     m.attr("__version__") = "dev";
 #endif
 
-    py::class_<alpaqa::Box>(m, "Box", "C++ documentation: :cpp:class:`alpaqa::Box`")
+    py::register_exception<alpaqa::not_implemented_error>(
+        m, "NotImplementedError", PyExc_NotImplementedError);
+
+    py::class_<alpaqa::Box>(m, "Box",
+                            "C++ documentation: :cpp:class:`alpaqa::Box`")
         .def(py::init([](unsigned n) {
                  return alpaqa::Box{alpaqa::vec::Constant(n, alpaqa::inf),
-                                alpaqa::vec::Constant(n, -alpaqa::inf)};
+                                    alpaqa::vec::Constant(n, -alpaqa::inf)};
              }),
              "n"_a,
              "Create an :math:`n`-dimensional box at with bounds at "
@@ -156,56 +161,30 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("upperbound", &alpaqa::Box::upperbound)
         .def_readwrite("lowerbound", &alpaqa::Box::lowerbound);
 
-    py::class_<alpaqa::Problem>(m, "Problem",
-                            "C++ documentation: :cpp:class:`alpaqa::Problem`")
+    py::class_<alpaqa::Problem, ProblemTrampoline<>>(
+        m, "Problem", "C++ documentation: :cpp:class:`alpaqa::Problem`")
         // .def(py::init())
         .def(py::init<unsigned, unsigned>(), "n"_a, "m"_a,
              ":param n: Number of unknowns\n"
              ":param m: Number of constraints")
+        .def("__copy__", [](const alpaqa::Problem &p) { return p.clone(); })
+        .def("__deepcopy__",
+             [](const alpaqa::Problem &p, py::dict) { return p.clone(); })
         .def_readwrite("n", &alpaqa::Problem::n,
                        "Number of unknowns, dimension of :math:`x`")
         .def_readwrite(
             "m", &alpaqa::Problem::m,
             "Number of general constraints, dimension of :math:`g(x)`")
         .def_readwrite("C", &alpaqa::Problem::C, "Box constraints on :math:`x`")
-        .def_readwrite("D", &alpaqa::Problem::D, "Box constraints on :math:`g(x)`")
-        .def_property("f", prob_getter_f(), prob_setter_f(),
-                      "Objective funcion, :math:`f(x)`")
-        .def_property(
-            "grad_f", prob_getter_grad_f(), prob_setter_grad_f(),
-            "Gradient of the objective function, :math:`\\nabla f(x)`")
-        .def_property("g", prob_getter_g(), prob_setter_g(),
-                      "Constraint function, :math:`g(x)`")
-        .def_property("grad_g_prod", prob_getter_grad_g_prod(),
-                      prob_setter_grad_g_prod(),
-                      "Gradient of constraint function times vector, "
-                      ":math:`\\nabla g(x)\\, v`")
-        .def_property("grad_gi", prob_getter_grad_gi(), prob_setter_grad_gi(),
-                      "Gradient vector of the :math:`i`-th component of the "
-                      "constriant function, :math:`\\nabla g_i(x)`")
-        .def_property(
-            "hess_L", prob_getter_hess_L(), prob_setter_hess_L(),
-            "Hessian of the Lagrangian function, :math:`\\nabla^2_{xx} L(x,y)`")
-        .def_property("hess_L_prod", prob_getter_hess_L_prod(),
-                      prob_setter_hess_L_prod(),
-                      "Hessian of the Lagrangian function times vector, "
-                      ":math:`\\nabla^2_{xx} L(x,y)\\, v`");
+        .def_readwrite("D", &alpaqa::Problem::D,
+                       "Box constraints on :math:`g(x)`")
+        .def("eval_f", &alpaqa::Problem::eval_f);
 
-    py::class_<alpaqa::ProblemWithParam, alpaqa::Problem>(
+    py::class_<alpaqa::ProblemWithParam, alpaqa::Problem,
+               ProblemTrampoline<alpaqa::ProblemWithParam>>(
         m, "ProblemWithParam",
         "C++ documentation: :cpp:class:`alpaqa::ProblemWithParam`\n\n"
         "See :py:class:`alpaqa._alpaqa.Problem` for the full documentation.")
-        .def_readwrite("n", &alpaqa::ProblemWithParam::n)
-        .def_readwrite("m", &alpaqa::ProblemWithParam::m)
-        .def_readwrite("C", &alpaqa::ProblemWithParam::C)
-        .def_readwrite("D", &alpaqa::ProblemWithParam::D)
-        .def_property_readonly("f", prob_getter_f())
-        .def_property_readonly("grad_f", prob_getter_grad_f())
-        .def_property_readonly("g", prob_getter_g())
-        .def_property_readonly("grad_g_prod", prob_getter_grad_g_prod())
-        .def_property_readonly("grad_gi", prob_getter_grad_gi())
-        .def_property_readonly("hess_L", prob_getter_hess_L())
-        .def_property_readonly("hess_L_prod", prob_getter_hess_L_prod())
         .def_property(
             "param", py::overload_cast<>(&alpaqa::ProblemWithParam::get_param),
             [](alpaqa::ProblemWithParam &p, alpaqa::crvec param) {
@@ -223,9 +202,24 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         "C++ documentation: "
         ":cpp:class:`alpaqa::EvalCounter::EvalTimer`\n\n")
         .def(py::pickle(
-            [](const alpaqa::EvalCounter::EvalTimer &p) { // __getstate__
-                return py::make_tuple(p.f, p.grad_f, p.g, p.grad_g_prod,
-                                      p.grad_gi, p.hess_L_prod, p.hess_L);
+            [](const alpaqa::EvalCounter::EvalTimer &p) {   // __getstate__
+                return py::make_tuple(p.f,                  //
+                                      p.grad_f,             //
+                                      p.f_grad_f,           //
+                                      p.f_g,                //
+                                      p.f_grad_f_g,         //
+                                      p.grad_f_grad_g_prod, //
+                                      p.g,                  //
+                                      p.grad_g_prod,        //
+                                      p.grad_gi,            //
+                                      p.grad_L,             //
+                                      p.hess_L_prod,        //
+                                      p.hess_L,             //
+                                      p.ψ,                  //
+                                      p.grad_ψ,             //
+                                      p.grad_ψ_from_ŷ,      //
+                                      p.ψ_grad_ψ            //
+                );
             },
             [](py::tuple t) { // __setstate__
                 if (t.size() != 7)
@@ -234,29 +228,67 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
                 return T{
                     py::cast<decltype(T::f)>(t[0]),
                     py::cast<decltype(T::grad_f)>(t[1]),
-                    py::cast<decltype(T::g)>(t[2]),
-                    py::cast<decltype(T::grad_g_prod)>(t[3]),
-                    py::cast<decltype(T::grad_gi)>(t[4]),
-                    py::cast<decltype(T::hess_L_prod)>(t[5]),
-                    py::cast<decltype(T::hess_L)>(t[6]),
+                    py::cast<decltype(T::f_grad_f)>(t[2]),
+                    py::cast<decltype(T::f_g)>(t[3]),
+                    py::cast<decltype(T::f_grad_f_g)>(t[4]),
+                    py::cast<decltype(T::grad_f_grad_g_prod)>(t[5]),
+                    py::cast<decltype(T::g)>(t[6]),
+                    py::cast<decltype(T::grad_g_prod)>(t[7]),
+                    py::cast<decltype(T::grad_gi)>(t[8]),
+                    py::cast<decltype(T::grad_L)>(t[9]),
+                    py::cast<decltype(T::hess_L_prod)>(t[10]),
+                    py::cast<decltype(T::hess_L)>(t[11]),
+                    py::cast<decltype(T::ψ)>(t[12]),
+                    py::cast<decltype(T::grad_ψ)>(t[13]),
+                    py::cast<decltype(T::grad_ψ_from_ŷ)>(t[14]),
+                    py::cast<decltype(T::ψ_grad_ψ)>(t[15]),
                 };
             }))
         .def_readwrite("f", &alpaqa::EvalCounter::EvalTimer::f)
         .def_readwrite("grad_f", &alpaqa::EvalCounter::EvalTimer::grad_f)
+        .def_readwrite("f_grad_f", &alpaqa::EvalCounter::EvalTimer::f_grad_f)
+        .def_readwrite("f_g", &alpaqa::EvalCounter::EvalTimer::f_g)
+        .def_readwrite("f_grad_f_g",
+                       &alpaqa::EvalCounter::EvalTimer::f_grad_f_g)
+        .def_readwrite("grad_f_grad_g_prod",
+                       &alpaqa::EvalCounter::EvalTimer::grad_f_grad_g_prod)
         .def_readwrite("g", &alpaqa::EvalCounter::EvalTimer::g)
-        .def_readwrite("grad_g_prod", &alpaqa::EvalCounter::EvalTimer::grad_g_prod)
+        .def_readwrite("grad_g_prod",
+                       &alpaqa::EvalCounter::EvalTimer::grad_g_prod)
         .def_readwrite("grad_gi", &alpaqa::EvalCounter::EvalTimer::grad_gi)
-        .def_readwrite("hess_L_prod", &alpaqa::EvalCounter::EvalTimer::hess_L_prod)
-        .def_readwrite("hess_L", &alpaqa::EvalCounter::EvalTimer::hess_L);
+        .def_readwrite("grad_L", &alpaqa::EvalCounter::EvalTimer::grad_L)
+        .def_readwrite("hess_L_prod",
+                       &alpaqa::EvalCounter::EvalTimer::hess_L_prod)
+        .def_readwrite("hess_L", &alpaqa::EvalCounter::EvalTimer::hess_L)
+        .def_readwrite("ψ", &alpaqa::EvalCounter::EvalTimer::ψ)
+        .def_readwrite("grad_ψ", &alpaqa::EvalCounter::EvalTimer::grad_ψ)
+        .def_readwrite("grad_ψ_from_ŷ",
+                       &alpaqa::EvalCounter::EvalTimer::grad_ψ_from_ŷ)
+        .def_readwrite("ψ_grad_ψ", &alpaqa::EvalCounter::EvalTimer::ψ_grad_ψ);
 
     py::class_<alpaqa::EvalCounter>(m, "EvalCounter",
-                                "C++ documentation: "
-                                ":cpp:class:`alpaqa::EvalCounter`\n\n")
+                                    "C++ documentation: "
+                                    ":cpp:class:`alpaqa::EvalCounter`\n\n")
         .def(py::pickle(
-            [](const alpaqa::EvalCounter &p) { // __getstate__
-                return py::make_tuple(p.f, p.grad_f, p.g, p.grad_g_prod,
-                                      p.grad_gi, p.hess_L_prod, p.hess_L,
-                                      p.time);
+            [](const alpaqa::EvalCounter &p) {              // __getstate__
+                return py::make_tuple(p.f,                  //
+                                      p.grad_f,             //
+                                      p.f_grad_f,           //
+                                      p.f_g,                //
+                                      p.f_grad_f_g,         //
+                                      p.grad_f_grad_g_prod, //
+                                      p.g,                  //
+                                      p.grad_g_prod,        //
+                                      p.grad_gi,            //
+                                      p.grad_L,             //
+                                      p.hess_L_prod,        //
+                                      p.hess_L,             //
+                                      p.ψ,                  //
+                                      p.grad_ψ,             //
+                                      p.grad_ψ_from_ŷ,      //
+                                      p.ψ_grad_ψ,           //
+                                      p.time                //
+                );
             },
             [](py::tuple t) { // __setstate__
                 if (t.size() != 8)
@@ -265,82 +297,65 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
                 return T{
                     py::cast<decltype(T::f)>(t[0]),
                     py::cast<decltype(T::grad_f)>(t[1]),
-                    py::cast<decltype(T::g)>(t[2]),
-                    py::cast<decltype(T::grad_g_prod)>(t[3]),
-                    py::cast<decltype(T::grad_gi)>(t[4]),
-                    py::cast<decltype(T::hess_L_prod)>(t[5]),
-                    py::cast<decltype(T::hess_L)>(t[6]),
-                    py::cast<decltype(T::time)>(t[7]),
+                    py::cast<decltype(T::f_grad_f)>(t[2]),
+                    py::cast<decltype(T::f_g)>(t[3]),
+                    py::cast<decltype(T::f_grad_f_g)>(t[4]),
+                    py::cast<decltype(T::grad_f_grad_g_prod)>(t[5]),
+                    py::cast<decltype(T::g)>(t[6]),
+                    py::cast<decltype(T::grad_g_prod)>(t[7]),
+                    py::cast<decltype(T::grad_gi)>(t[8]),
+                    py::cast<decltype(T::grad_L)>(t[9]),
+                    py::cast<decltype(T::hess_L_prod)>(t[10]),
+                    py::cast<decltype(T::hess_L)>(t[11]),
+                    py::cast<decltype(T::ψ)>(t[12]),
+                    py::cast<decltype(T::grad_ψ)>(t[13]),
+                    py::cast<decltype(T::grad_ψ_from_ŷ)>(t[14]),
+                    py::cast<decltype(T::ψ_grad_ψ)>(t[15]),
+                    py::cast<decltype(T::time)>(t[16]),
                 };
             }))
         .def_readwrite("f", &alpaqa::EvalCounter::f)
         .def_readwrite("grad_f", &alpaqa::EvalCounter::grad_f)
+        .def_readwrite("f_grad_f", &alpaqa::EvalCounter::f_grad_f)
+        .def_readwrite("f_g", &alpaqa::EvalCounter::f_g)
+        .def_readwrite("f_grad_f_g", &alpaqa::EvalCounter::f_grad_f_g)
+        .def_readwrite("grad_f_grad_g_prod",
+                       &alpaqa::EvalCounter::grad_f_grad_g_prod)
         .def_readwrite("g", &alpaqa::EvalCounter::g)
         .def_readwrite("grad_g_prod", &alpaqa::EvalCounter::grad_g_prod)
         .def_readwrite("grad_gi", &alpaqa::EvalCounter::grad_gi)
+        .def_readwrite("grad_L", &alpaqa::EvalCounter::grad_L)
         .def_readwrite("hess_L_prod", &alpaqa::EvalCounter::hess_L_prod)
         .def_readwrite("hess_L", &alpaqa::EvalCounter::hess_L)
-        .def_readwrite("time", &alpaqa::EvalCounter::time);
+        .def_readwrite("ψ", &alpaqa::EvalCounter::ψ)
+        .def_readwrite("grad_ψ", &alpaqa::EvalCounter::grad_ψ)
+        .def_readwrite("grad_ψ_from_ŷ", &alpaqa::EvalCounter::grad_ψ_from_ŷ)
+        .def_readwrite("ψ_grad_ψ", &alpaqa::EvalCounter::ψ_grad_ψ)
+        .def_readwrite("time", &alpaqa::EvalCounter::time)
+        .def("__str__", [](const alpaqa::EvalCounter &c) {
+            std::ostringstream os;
+            os << c;
+            return os.str();
+        });
 
-    py::class_<alpaqa::ProblemWithCounters<alpaqa::Problem>, alpaqa::Problem>(
-        m, "ProblemWithCounters",
+    py::class_<alpaqa::CasADiProblem, alpaqa::ProblemWithParam,
+               ProblemTrampoline<alpaqa::CasADiProblem>>(
+        m, "CasADiProblem",
         "C++ documentation: "
-        ":cpp:class:`alpaqa::ProblemWithCounters<alpaqa::Problem>`\n\n"
-        "See :py:class:`alpaqa._alpaqa.Problem` for the full documentation.")
-        .def(py::init<const alpaqa::Problem &>(), "problem"_a)
-        .def_readwrite("n", &alpaqa::ProblemWithCounters<alpaqa::Problem>::n)
-        .def_readwrite("m", &alpaqa::ProblemWithCounters<alpaqa::Problem>::m)
-        .def_readwrite("C", &alpaqa::ProblemWithCounters<alpaqa::Problem>::C)
-        .def_readwrite("D", &alpaqa::ProblemWithCounters<alpaqa::Problem>::D)
-        .def_property_readonly("f", prob_getter_f())
-        .def_property_readonly("grad_f", prob_getter_grad_f())
-        .def_property_readonly("g", prob_getter_g())
-        .def_property_readonly("grad_g_prod", prob_getter_grad_g_prod())
-        .def_property_readonly("grad_gi", prob_getter_grad_gi())
-        .def_property_readonly("hess_L", prob_getter_hess_L())
-        .def_property_readonly("hess_L_prod", prob_getter_hess_L_prod())
-        .def_property_readonly(
-            "evaluations", [](const alpaqa::ProblemWithCounters<alpaqa::Problem> &p) {
-                return *p.evaluations;
-            });
+        ":cpp:class:`alpaqa::CasADiProblem`\n\n"
+        "See :py:class:`alpaqa._alpaqa.Problem` for the full documentation.");
 
-    py::class_<alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>,
-               alpaqa::ProblemWithParam>(
-        m, "ProblemWithParamWithCounters",
+    py::class_<
+        alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>,
+        alpaqa::CasADiProblem,
+        ProblemTrampoline<alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>>>(
+        m, "CasADiProblemWithCounters",
         "C++ documentation: "
-        ":cpp:class:`alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>`\n\n"
+        ":cpp:class:`alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>`\n\n"
         "See :py:class:`alpaqa._alpaqa.Problem` for the full documentation.")
-        .def(py::init<const alpaqa::ProblemWithParam &>(), "problem"_a)
-        .def_readwrite("n", &alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>::n)
-        .def_readwrite("m", &alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>::m)
-        .def_readwrite("C", &alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>::C)
-        .def_readwrite("D", &alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>::D)
-        .def_property_readonly("f", prob_getter_f())
-        .def_property_readonly("grad_f", prob_getter_grad_f())
-        .def_property_readonly("g", prob_getter_g())
-        .def_property_readonly("grad_g_prod", prob_getter_grad_g_prod())
-        .def_property_readonly("grad_gi", prob_getter_grad_gi())
-        .def_property_readonly("hess_L", prob_getter_hess_L())
-        .def_property_readonly("hess_L_prod", prob_getter_hess_L_prod())
-        .def_property(
-            "param",
-            py::overload_cast<>(
-                &alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam>::get_param),
-            [](alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam> &p,
-               alpaqa::crvec param) {
-                if (param.size() != p.get_param().size())
-                    throw std::invalid_argument(
-                        "Invalid parameter dimension: got " +
-                        std::to_string(param.size()) + ", should be " +
-                        std::to_string(p.get_param().size()) + ".");
-                p.set_param(param);
-            },
-            "Parameter vector :math:`p` of the problem")
-        .def_property_readonly(
+        .def_readwrite(
             "evaluations",
-            [](const alpaqa::ProblemWithCounters<alpaqa::ProblemWithParam> &p) {
-                return *p.evaluations;
-            });
+            &alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>::evaluations);
 
     py::class_<alpaqa::PolymorphicPANOCDirectionBase,
                std::shared_ptr<alpaqa::PolymorphicPANOCDirectionBase>,
@@ -394,7 +409,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
                                &alpaqa::PolymorphicLBFGSDirection::get_params);
 
     py::enum_<alpaqa::LBFGSStepSize>(
-        m, "LBFGSStepsize", "C++ documentation: :cpp:enum:`alpaqa::LBFGSStepSize`")
+        m, "LBFGSStepsize",
+        "C++ documentation: :cpp:enum:`alpaqa::LBFGSStepSize`")
         .value("BasedOnGradientStepSize",
                alpaqa::LBFGSStepSize::BasedOnGradientStepSize)
         .value("BasedOnCurvature", alpaqa::LBFGSStepSize::BasedOnCurvature)
@@ -409,7 +425,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("L_0", &alpaqa::LipschitzEstimateParams::L₀)
         .def_readwrite("ε", &alpaqa::LipschitzEstimateParams::ε)
         .def_readwrite("δ", &alpaqa::LipschitzEstimateParams::δ)
-        .def_readwrite("Lγ_factor", &alpaqa::LipschitzEstimateParams::Lγ_factor);
+        .def_readwrite("Lγ_factor",
+                       &alpaqa::LipschitzEstimateParams::Lγ_factor);
 
     py::class_<alpaqa::PANOCParams>(
         m, "PANOCParams", "C++ documentation: :cpp:class:`alpaqa::PANOCParams`")
@@ -424,8 +441,9 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("L_max", &alpaqa::PANOCParams::L_max)
         .def_readwrite("max_no_progress", &alpaqa::PANOCParams::max_no_progress)
         .def_readwrite("print_interval", &alpaqa::PANOCParams::print_interval)
-        .def_readwrite("quadratic_upperbound_tolerance_factor",
-                       &alpaqa::PANOCParams::quadratic_upperbound_tolerance_factor)
+        .def_readwrite(
+            "quadratic_upperbound_tolerance_factor",
+            &alpaqa::PANOCParams::quadratic_upperbound_tolerance_factor)
         .def_readwrite("update_lipschitz_in_linesearch",
                        &alpaqa::PANOCParams::update_lipschitz_in_linesearch)
         .def_readwrite("alternative_linesearch_cond",
@@ -463,7 +481,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def("get_params", &alpaqa::PolymorphicInnerSolverBase::get_params);
 
     py::enum_<alpaqa::PANOCStopCrit>(
-        m, "PANOCStopCrit", "C++ documentation: :cpp:enum:`alpaqa::PANOCStopCrit`")
+        m, "PANOCStopCrit",
+        "C++ documentation: :cpp:enum:`alpaqa::PANOCStopCrit`")
         .value("ApproxKKT", alpaqa::PANOCStopCrit::ApproxKKT)
         .value("ApproxKKT2", alpaqa::PANOCStopCrit::ApproxKKT2)
         .value("ProjGradNorm", alpaqa::PANOCStopCrit::ProjGradNorm)
@@ -475,8 +494,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .value("Ipopt", alpaqa::PANOCStopCrit::Ipopt)
         .export_values();
 
-    py::class_<alpaqa::PGAParams>(m, "PGAParams",
-                              "C++ documentation: :cpp:class:`alpaqa::PGAParams`")
+    py::class_<alpaqa::PGAParams>(
+        m, "PGAParams", "C++ documentation: :cpp:class:`alpaqa::PGAParams`")
         .def(py::init())
         .def(py::init(&kwargs_to_struct<alpaqa::PGAParams>))
         .def("to_dict", &struct_to_dict<alpaqa::PGAParams>)
@@ -487,8 +506,9 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("L_max", &alpaqa::PGAParams::L_max)
         .def_readwrite("stop_crit", &alpaqa::PGAParams::stop_crit)
         .def_readwrite("print_interval", &alpaqa::PGAParams::print_interval)
-        .def_readwrite("quadratic_upperbound_tolerance_factor",
-                       &alpaqa::PGAParams::quadratic_upperbound_tolerance_factor);
+        .def_readwrite(
+            "quadratic_upperbound_tolerance_factor",
+            &alpaqa::PGAParams::quadratic_upperbound_tolerance_factor);
 
     py::class_<alpaqa::PGAProgressInfo>(
         m, "PGAProgressInfo",
@@ -512,7 +532,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         });
 
     py::class_<alpaqa::GAAPGAParams>(
-        m, "GAAPGAParams", "C++ documentation: :cpp:class:`alpaqa::GAAPGAParams`")
+        m, "GAAPGAParams",
+        "C++ documentation: :cpp:class:`alpaqa::GAAPGAParams`")
         .def(py::init())
         .def(py::init(&kwargs_to_struct<alpaqa::GAAPGAParams>))
         .def("to_dict", &struct_to_dict<alpaqa::GAAPGAParams>)
@@ -524,9 +545,11 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("L_max", &alpaqa::GAAPGAParams::L_max)
         .def_readwrite("stop_crit", &alpaqa::GAAPGAParams::stop_crit)
         .def_readwrite("print_interval", &alpaqa::GAAPGAParams::print_interval)
-        .def_readwrite("quadratic_upperbound_tolerance_factor",
-                       &alpaqa::GAAPGAParams::quadratic_upperbound_tolerance_factor)
-        .def_readwrite("max_no_progress", &alpaqa::GAAPGAParams::max_no_progress)
+        .def_readwrite(
+            "quadratic_upperbound_tolerance_factor",
+            &alpaqa::GAAPGAParams::quadratic_upperbound_tolerance_factor)
+        .def_readwrite("max_no_progress",
+                       &alpaqa::GAAPGAParams::max_no_progress)
         .def_readwrite("full_flush_on_γ_change",
                        &alpaqa::GAAPGAParams::full_flush_on_γ_change);
 
@@ -596,7 +619,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
     py::class_<alpaqa::StructuredPANOCLBFGSProgressInfo>(
         m, "StructuredPANOCLBFGSProgressInfo",
         "Data passed to the structured PANOC progress callback.\n\n"
-        "C++ documentation: :cpp:class:`alpaqa::StructuredPANOCLBFGSProgressInfo`")
+        "C++ documentation: "
+        ":cpp:class:`alpaqa::StructuredPANOCLBFGSProgressInfo`")
         .def_readonly("k", &alpaqa::StructuredPANOCLBFGSProgressInfo::k)
         .def_readonly("x", &alpaqa::StructuredPANOCLBFGSProgressInfo::x)
         .def_readonly("p", &alpaqa::StructuredPANOCLBFGSProgressInfo::p)
@@ -605,7 +629,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readonly("x_hat", &alpaqa::StructuredPANOCLBFGSProgressInfo::x_hat)
         .def_readonly("φγ", &alpaqa::StructuredPANOCLBFGSProgressInfo::φγ)
         .def_readonly("ψ", &alpaqa::StructuredPANOCLBFGSProgressInfo::ψ)
-        .def_readonly("grad_ψ", &alpaqa::StructuredPANOCLBFGSProgressInfo::grad_ψ)
+        .def_readonly("grad_ψ",
+                      &alpaqa::StructuredPANOCLBFGSProgressInfo::grad_ψ)
         .def_readonly("ψ_hat", &alpaqa::StructuredPANOCLBFGSProgressInfo::ψ_hat)
         .def_readonly("grad_ψ_hat",
                       &alpaqa::StructuredPANOCLBFGSProgressInfo::grad_ψ_hat)
@@ -628,7 +653,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
             return std::make_shared<alpaqa::PolymorphicPANOCSolver>(
                 alpaqa::PANOCSolver<alpaqa::PolymorphicPANOCDirectionBase>{
                     alpaqa::PANOCParams{},
-                    std::static_pointer_cast<alpaqa::PolymorphicPANOCDirectionBase>(
+                    std::static_pointer_cast<
+                        alpaqa::PolymorphicPANOCDirectionBase>(
                         std::make_shared<alpaqa::PolymorphicLBFGSDirection>(
                             alpaqa::LBFGSParams{}))});
         }))
@@ -643,7 +669,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
              "panoc_params"_a, "direction"_a)
         .def(
             "set_progress_callback",
-            &alpaqa::PolymorphicPANOCSolver::set_progress_callback, "callback"_a,
+            &alpaqa::PolymorphicPANOCSolver::set_progress_callback,
+            "callback"_a,
             "Attach a callback that is called on each iteration of the solver.")
         .def("__call__",
              alpaqa::InnerSolverCallWrapper<alpaqa::PolymorphicPANOCSolver>(),
@@ -678,7 +705,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
             "set_progress_callback",
             &alpaqa::PolymorphicPGASolver::set_progress_callback, "callback"_a,
             "Attach a callback that is called on each iteration of the solver.")
-        .def("__call__", alpaqa::InnerSolverCallWrapper<alpaqa::PolymorphicPGASolver>(),
+        .def("__call__",
+             alpaqa::InnerSolverCallWrapper<alpaqa::PolymorphicPGASolver>(),
              py::call_guard<py::scoped_ostream_redirect,
                             py::scoped_estream_redirect>(),
              "problem"_a, "Σ"_a, "ε"_a, "x"_a,
@@ -694,16 +722,19 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
              "         * Slack variable error :math:`g(x) - z`\n"
              "         * Statistics\n\n")
         .def("__str__", &alpaqa::PolymorphicPGASolver::get_name)
-        .def_property_readonly("params", &alpaqa::PolymorphicPGASolver::get_params);
+        .def_property_readonly("params",
+                               &alpaqa::PolymorphicPGASolver::get_params);
 
     py::class_<alpaqa::PolymorphicGAAPGASolver,
                std::shared_ptr<alpaqa::PolymorphicGAAPGASolver>,
                alpaqa::PolymorphicInnerSolverBase>(
-        m, "GAAPGASolver", "C++ documentation: :cpp:class:`alpaqa::GAAPGASolver`")
+        m, "GAAPGASolver",
+        "C++ documentation: :cpp:class:`alpaqa::GAAPGASolver`")
         .def(py::init<alpaqa::GAAPGAParams>())
         .def(
             "set_progress_callback",
-            &alpaqa::PolymorphicGAAPGASolver::set_progress_callback, "callback"_a,
+            &alpaqa::PolymorphicGAAPGASolver::set_progress_callback,
+            "callback"_a,
             "Attach a callback that is called on each iteration of the solver.")
         .def("__call__",
              alpaqa::InnerSolverCallWrapper<alpaqa::PolymorphicGAAPGASolver>(),
@@ -731,15 +762,20 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def(py::init(&kwargs_to_struct<alpaqa::StructuredPANOCLBFGSParams>))
         .def("to_dict", &struct_to_dict<alpaqa::StructuredPANOCLBFGSParams>)
 
-        .def_readwrite("Lipschitz", &alpaqa::StructuredPANOCLBFGSParams::Lipschitz)
-        .def_readwrite("max_iter", &alpaqa::StructuredPANOCLBFGSParams::max_iter)
-        .def_readwrite("max_time", &alpaqa::StructuredPANOCLBFGSParams::max_time)
+        .def_readwrite("Lipschitz",
+                       &alpaqa::StructuredPANOCLBFGSParams::Lipschitz)
+        .def_readwrite("max_iter",
+                       &alpaqa::StructuredPANOCLBFGSParams::max_iter)
+        .def_readwrite("max_time",
+                       &alpaqa::StructuredPANOCLBFGSParams::max_time)
         .def_readwrite("τ_min", &alpaqa::StructuredPANOCLBFGSParams::τ_min)
         .def_readwrite("L_min", &alpaqa::StructuredPANOCLBFGSParams::L_min)
         .def_readwrite("L_max", &alpaqa::StructuredPANOCLBFGSParams::L_max)
-        .def_readwrite("nonmonotone_linesearch",
-                       &alpaqa::StructuredPANOCLBFGSParams::nonmonotone_linesearch)
-        .def_readwrite("stop_crit", &alpaqa::StructuredPANOCLBFGSParams::stop_crit)
+        .def_readwrite(
+            "nonmonotone_linesearch",
+            &alpaqa::StructuredPANOCLBFGSParams::nonmonotone_linesearch)
+        .def_readwrite("stop_crit",
+                       &alpaqa::StructuredPANOCLBFGSParams::stop_crit)
         .def_readwrite("max_no_progress",
                        &alpaqa::StructuredPANOCLBFGSParams::max_no_progress)
         .def_readwrite("print_interval",
@@ -758,8 +794,9 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite(
             "hessian_vec_finite_differences",
             &alpaqa::StructuredPANOCLBFGSParams::hessian_vec_finite_differences)
-        .def_readwrite("full_augmented_hessian",
-                       &alpaqa::StructuredPANOCLBFGSParams::full_augmented_hessian)
+        .def_readwrite(
+            "full_augmented_hessian",
+            &alpaqa::StructuredPANOCLBFGSParams::full_augmented_hessian)
         .def_readwrite(
             "hessian_step_size_heuristic",
             &alpaqa::StructuredPANOCLBFGSParams::hessian_step_size_heuristic)
@@ -772,23 +809,26 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         m, "StructuredPANOCLBFGSSolver",
         "C++ documentation: :cpp:class:`alpaqa::StructuredPANOCLBFGSSolver`")
         .def(py::init([] {
-            return std::make_shared<alpaqa::PolymorphicStructuredPANOCLBFGSSolver>(
+            return std::make_shared<
+                alpaqa::PolymorphicStructuredPANOCLBFGSSolver>(
                 alpaqa::StructuredPANOCLBFGSSolver{
                     alpaqa::StructuredPANOCLBFGSParams{},
                     alpaqa::LBFGSParams{},
                 });
         }))
-        .def(py::init([](const std::variant<alpaqa::StructuredPANOCLBFGSParams,
-                                            py::dict> &pp,
-                         const std::variant<alpaqa::LBFGSParams, py::dict> &lp) {
-                 return std::make_shared<
-                     alpaqa::PolymorphicStructuredPANOCLBFGSSolver>(
-                     var_kwargs_to_struct(pp), var_kwargs_to_struct(lp));
-             }),
-             "panoc_params"_a, "lbfgs_params"_a)
+        .def(
+            py::init([](const std::variant<alpaqa::StructuredPANOCLBFGSParams,
+                                           py::dict> &pp,
+                        const std::variant<alpaqa::LBFGSParams, py::dict> &lp) {
+                return std::make_shared<
+                    alpaqa::PolymorphicStructuredPANOCLBFGSSolver>(
+                    var_kwargs_to_struct(pp), var_kwargs_to_struct(lp));
+            }),
+            "panoc_params"_a, "lbfgs_params"_a)
         .def(
             "set_progress_callback",
-            &alpaqa::PolymorphicStructuredPANOCLBFGSSolver::set_progress_callback,
+            &alpaqa::PolymorphicStructuredPANOCLBFGSSolver::
+                set_progress_callback,
             "callback"_a,
             "Attach a callback that is called on each iteration of the solver.")
         .def("__call__",
@@ -808,12 +848,14 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
              "         * Updated Lagrange multipliers :math:`y`\n"
              "         * Slack variable error :math:`g(x) - z`\n"
              "         * Statistics\n\n")
-        .def("__str__", &alpaqa::PolymorphicStructuredPANOCLBFGSSolver::get_name)
+        .def("__str__",
+             &alpaqa::PolymorphicStructuredPANOCLBFGSSolver::get_name)
         .def_property_readonly(
-            "params", &alpaqa::PolymorphicStructuredPANOCLBFGSSolver::get_params);
+            "params",
+            &alpaqa::PolymorphicStructuredPANOCLBFGSSolver::get_params);
 
-    py::class_<alpaqa::ALMParams>(m, "ALMParams",
-                              "C++ documentation: :cpp:class:`alpaqa::ALMParams`")
+    py::class_<alpaqa::ALMParams>(
+        m, "ALMParams", "C++ documentation: :cpp:class:`alpaqa::ALMParams`")
         .def(py::init())
         .def(py::init(&kwargs_to_struct<alpaqa::ALMParams>))
         .def("to_dict", &struct_to_dict<alpaqa::ALMParams>)
@@ -840,7 +882,6 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("max_total_num_retries",
                        &alpaqa::ALMParams::max_total_num_retries)
         .def_readwrite("print_interval", &alpaqa::ALMParams::print_interval)
-        .def_readwrite("preconditioning", &alpaqa::ALMParams::preconditioning)
         .def_readwrite("single_penalty_factor",
                        &alpaqa::ALMParams::single_penalty_factor);
 
@@ -852,7 +893,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def(py::init([] {
                  return alpaqa::PolymorphicALMSolver{
                      alpaqa::ALMParams{},
-                     std::static_pointer_cast<alpaqa::PolymorphicInnerSolverBase>(
+                     std::static_pointer_cast<
+                         alpaqa::PolymorphicInnerSolverBase>(
                          std::make_shared<
                              alpaqa::PolymorphicStructuredPANOCLBFGSSolver>(
                              alpaqa::StructuredPANOCLBFGSParams{},
@@ -861,13 +903,15 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
              }),
              "Build an ALM solver using Structured PANOC as inner solver.")
         // Params and solver
-        .def(py::init(PolymorphicALMConstructor<alpaqa::PolymorphicPANOCSolver>()),
+        .def(py::init(
+                 PolymorphicALMConstructor<alpaqa::PolymorphicPANOCSolver>()),
              "alm_params"_a, "panoc_solver"_a,
              "Build an ALM solver using PANOC as inner solver.")
-        .def(py::init(PolymorphicALMConstructor<alpaqa::PolymorphicPGASolver>()),
-             "alm_params"_a, "pga_solver"_a,
-             "Build an ALM solver using the projected gradient algorithm as "
-             "inner solver.")
+        .def(
+            py::init(PolymorphicALMConstructor<alpaqa::PolymorphicPGASolver>()),
+            "alm_params"_a, "pga_solver"_a,
+            "Build an ALM solver using the projected gradient algorithm as "
+            "inner solver.")
         .def(py::init(PolymorphicALMConstructor<
                       alpaqa::PolymorphicStructuredPANOCLBFGSSolver>()),
              "alm_params"_a, "structuredpanoc_solver"_a,
@@ -898,7 +942,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def(py::init([](const alpaqa::ALMParams &params) {
                  return alpaqa::PolymorphicALMSolver{
                      params,
-                     std::static_pointer_cast<alpaqa::PolymorphicInnerSolverBase>(
+                     std::static_pointer_cast<
+                         alpaqa::PolymorphicInnerSolverBase>(
                          std::make_shared<
                              alpaqa::PolymorphicStructuredPANOCLBFGSSolver>(
                              alpaqa::StructuredPANOCLBFGSParams{},
@@ -959,12 +1004,14 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
             "         * Solution :math:`x`\n"
             "         * Statistics\n\n")
         .def("__str__", &alpaqa::PolymorphicALMSolver::get_name)
-        .def_property_readonly("params", &alpaqa::PolymorphicALMSolver::get_params);
+        .def_property_readonly("params",
+                               &alpaqa::PolymorphicALMSolver::get_params);
 
     constexpr auto panoc = [](std::function<alpaqa::real_t(alpaqa::crvec)> ψ,
                               std::function<alpaqa::vec(alpaqa::crvec)> grad_ψ,
-                              const alpaqa::Box &C, std::optional<alpaqa::vec> x0,
-                              alpaqa::real_t ε, const alpaqa::PANOCParams &params,
+                              const alpaqa::Box &C,
+                              std::optional<alpaqa::vec> x0, alpaqa::real_t ε,
+                              const alpaqa::PANOCParams &params,
                               const alpaqa::LBFGSParams &lbfgs_params) {
         auto n = C.lowerbound.size();
         if (C.upperbound.size() != n)
@@ -981,8 +1028,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
                 throw std::runtime_error("Invalid grad_ψ dimension");
             gr = std::move(t);
         };
-        auto stats =
-            alpaqa::panoc<alpaqa::LBFGS>(ψ, grad_ψ_, C, *x0, ε, params, {lbfgs_params});
+        auto stats = alpaqa::panoc<alpaqa::LBFGS>(ψ, grad_ψ_, C, *x0, ε, params,
+                                                  {lbfgs_params});
         return std::make_tuple(std::move(*x0), stats_to_dict(stats));
     };
 
@@ -991,29 +1038,28 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
           "lbfgs_params"_a = alpaqa::LBFGSParams{});
 
 #if !ALPAQA_HAVE_CASADI
-    auto load_CasADi_problem = [](const char *, unsigned, unsigned,
-                                  bool) -> alpaqa::Problem {
-        throw std::runtime_error(
-            "This version of alpaqa was compiled without CasADi support");
-    };
-    auto load_CasADi_problem_with_param = [](const char *, unsigned, unsigned,
-                                             unsigned,
-                                             bool) -> alpaqa::ProblemWithParam {
+    constexpr static auto load_CasADi_problem =
+        [](const char *, unsigned, unsigned, unsigned, bool,
+           bool) -> alpaqa::ProblemWithParam {
         throw std::runtime_error(
             "This version of alpaqa was compiled without CasADi support");
     };
 #else
-    using alpaqa::load_CasADi_problem;
-    using alpaqa::load_CasADi_problem_with_param;
+    constexpr static auto load_CasADi_problem =
+        [](const char *so_name, unsigned n, unsigned m, unsigned p,
+           bool second_order,
+           bool counted) -> std::unique_ptr<alpaqa::CasADiProblem> {
+        auto prob = std::make_unique<alpaqa::CasADiProblem>(so_name, n, m, p,
+                                                            second_order);
+        if (counted)
+            prob = std::make_unique<
+                alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>>(
+                std::move(*prob));
+        return prob;
+    };
 #endif
 
     m.def("load_casadi_problem", load_CasADi_problem, "so_name"_a, "n"_a = 0,
-          "m"_a = 0, "second_order"_a = false,
-          "Load a compiled CasADi problem without parameters.\n\n"
-          "C++ documentation: :cpp:func:`alpaqa::load_CasADi_problem`");
-    m.def("load_casadi_problem_with_param", load_CasADi_problem_with_param,
-          "so_name"_a, "n"_a = 0, "m"_a = 0, "p"_a = 0,
-          "second_order"_a = false,
-          "Load a compiled CasADi problem with parameters.\n\n"
-          "C++ documentation: :cpp:func:`alpaqa::load_CasADi_problem_with_param`");
+          "m"_a = 0, "p"_a = 0, "second_order"_a = false, "counted"_a = true,
+          "Load a compiled CasADi problem.\n\n");
 }
