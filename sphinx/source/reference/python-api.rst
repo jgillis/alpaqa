@@ -65,7 +65,13 @@ Problem formulation
 CasADi Interface
 ----------------
 
-.. automodule:: alpaqa.casadi_problem
+.. automodule:: alpaqa.casadi_generator
+    :noindex:
+    :members:
+    :undoc-members:
+    :special-members: __init__, __call__
+
+.. automodule:: alpaqa.casadi_loader
     :noindex:
     :members:
     :undoc-members:
@@ -79,7 +85,12 @@ All
     :undoc-members:
     :special-members: __init__, __call__
 
-.. automodule:: alpaqa.casadi_problem
+.. automodule:: alpaqa.casadi_generator
+    :members:
+    :undoc-members:
+    :special-members: __init__, __call__
+
+.. automodule:: alpaqa.casadi_loader
     :members:
     :undoc-members:
     :special-members: __init__, __call__
