@@ -338,24 +338,27 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
             return os.str();
         });
 
-    py::class_<alpaqa::CasADiProblem, alpaqa::ProblemWithParam,
-               ProblemTrampoline<alpaqa::CasADiProblem>>(
+#if ALPAQA_HAVE_CASADI
+    using alpaqa::CasADiProblem;
+#else
+    struct CasADiProblem : alpaqa::ProblemWithParam {};
+#endif
+    py::class_<CasADiProblem, alpaqa::ProblemWithParam,
+               ProblemTrampoline<CasADiProblem>>(
         m, "CasADiProblem",
         "C++ documentation: "
         ":cpp:class:`alpaqa::CasADiProblem`\n\n"
         "See :py:class:`alpaqa._alpaqa.Problem` for the full documentation.");
 
-    py::class_<
-        alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>,
-        alpaqa::CasADiProblem,
-        ProblemTrampoline<alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>>>(
+    py::class_<alpaqa::ProblemWithCounters<CasADiProblem>, CasADiProblem,
+               ProblemTrampoline<alpaqa::ProblemWithCounters<CasADiProblem>>>(
         m, "CasADiProblemWithCounters",
         "C++ documentation: "
         ":cpp:class:`alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>`\n\n"
         "See :py:class:`alpaqa._alpaqa.Problem` for the full documentation.")
         .def_readwrite(
             "evaluations",
-            &alpaqa::ProblemWithCounters<alpaqa::CasADiProblem>::evaluations);
+            &alpaqa::ProblemWithCounters<CasADiProblem>::evaluations);
 
     py::class_<alpaqa::PolymorphicPANOCDirectionBase,
                std::shared_ptr<alpaqa::PolymorphicPANOCDirectionBase>,
