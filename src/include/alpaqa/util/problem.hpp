@@ -473,12 +473,14 @@ class ProblemWithCounters : public ProblemT {
     }
 };
 
+#ifndef DOXYGEN
 template <class ProblemT>
 ProblemWithCounters(ProblemT &) -> ProblemWithCounters<ProblemT>;
 template <class ProblemT>
 ProblemWithCounters(const ProblemT &) -> ProblemWithCounters<ProblemT>;
 template <class ProblemT>
 ProblemWithCounters(ProblemT &&) -> ProblemWithCounters<ProblemT>;
+#endif
 
 template <class ProblemT>
 real_t ProblemWithCounters<ProblemT>::eval_f(crvec x) const {
