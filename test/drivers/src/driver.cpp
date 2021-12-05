@@ -169,6 +169,10 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out,
     out << YAML::Key << "L_max" << YAML::Value << p.L_max;
     out << YAML::Key << "nonmonotone_linesearch" << YAML::Value
         << p.nonmonotone_linesearch;
+    out << YAML::Key << "fpr_shortcut_accept_factor" << YAML::Value
+        << p.fpr_shortcut_accept_factor;
+    out << YAML::Key << "fpr_shortcut_history" << YAML::Value
+        << p.fpr_shortcut_history;
     out << YAML::Key << "stop_crit" << YAML::Value << p.stop_crit;
     out << YAML::Key << "update_lipschitz_in_linesearch" << YAML::Value
         << p.update_lipschitz_in_linesearch;

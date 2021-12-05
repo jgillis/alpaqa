@@ -172,7 +172,8 @@ inline const kwargs_to_struct_table_t<alpaqa::GAAPGAParams>
         {"quadratic_upperbound_tolerance_factor",
          &alpaqa::GAAPGAParams::quadratic_upperbound_tolerance_factor},
         {"max_no_progress", &alpaqa::GAAPGAParams::max_no_progress},
-        {"full_flush_on_γ_change", &alpaqa::GAAPGAParams::full_flush_on_γ_change},
+        {"full_flush_on_γ_change",
+         &alpaqa::GAAPGAParams::full_flush_on_γ_change},
     };
 
 #include <alpaqa/inner/decl/structured-panoc-lbfgs.hpp>
@@ -188,8 +189,13 @@ inline const kwargs_to_struct_table_t<alpaqa::StructuredPANOCLBFGSParams>
         {"L_max", &alpaqa::StructuredPANOCLBFGSParams::L_max},
         {"nonmonotone_linesearch",
          &alpaqa::StructuredPANOCLBFGSParams::nonmonotone_linesearch},
+        {"fpr_shortcut_accept_factor",
+         &alpaqa::StructuredPANOCLBFGSParams::fpr_shortcut_accept_factor},
+        {"fpr_shortcut_history",
+         &alpaqa::StructuredPANOCLBFGSParams::fpr_shortcut_history},
         {"stop_crit", &alpaqa::StructuredPANOCLBFGSParams::stop_crit},
-        {"max_no_progress", &alpaqa::StructuredPANOCLBFGSParams::max_no_progress},
+        {"max_no_progress",
+         &alpaqa::StructuredPANOCLBFGSParams::max_no_progress},
         {"print_interval", &alpaqa::StructuredPANOCLBFGSParams::print_interval},
         {"quadratic_upperbound_tolerance_factor",
          &alpaqa::StructuredPANOCLBFGSParams::
@@ -215,7 +221,8 @@ inline const kwargs_to_struct_table_t<alpaqa::LBFGSParams>
     kwargs_to_struct_table<alpaqa::LBFGSParams>{
         {"memory", &alpaqa::LBFGSParams::memory},
         {"cbfgs", &alpaqa::LBFGSParams::cbfgs},
-        {"rescale_when_γ_changes", &alpaqa::LBFGSParams::rescale_when_γ_changes},
+        {"rescale_when_γ_changes",
+         &alpaqa::LBFGSParams::rescale_when_γ_changes},
     };
 
 template <>
@@ -247,7 +254,8 @@ inline const kwargs_to_struct_table_t<alpaqa::ALMParams>
         {"Σ_min", &alpaqa::ALMParams::Σ_min},
         {"max_iter", &alpaqa::ALMParams::max_iter},
         {"max_time", &alpaqa::ALMParams::max_time},
-        {"max_num_initial_retries", &alpaqa::ALMParams::max_num_initial_retries},
+        {"max_num_initial_retries",
+         &alpaqa::ALMParams::max_num_initial_retries},
         {"max_num_retries", &alpaqa::ALMParams::max_num_retries},
         {"max_total_num_retries", &alpaqa::ALMParams::max_total_num_retries},
         {"print_interval", &alpaqa::ALMParams::print_interval},

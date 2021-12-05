@@ -33,6 +33,12 @@ struct StructuredPANOCLBFGSParams {
     /// Factor used in update for exponentially weighted nonmonotone line search.
     /// Zero means monotone line search.
     real_t nonmonotone_linesearch = 0;
+    /// Check the FPR norm (with γ = 1) to quickly accept steps without line
+    /// search.
+    real_t fpr_shortcut_accept_factor = 0.999;
+    /// If greater than one, allows nonmonotone FPR decrease when accepting the
+    /// FPR shortcut steps. Cannot be zero.
+    unsigned fpr_shortcut_history = 1;
     /// What stopping criterion to use.
     PANOCStopCrit stop_crit = PANOCStopCrit::ApproxKKT;
     /// Maximum number of iterations without any progress before giving up.
@@ -89,6 +95,7 @@ struct StructuredPANOCLBFGSStats {
     unsigned τ_1_accepted        = 0;
     unsigned count_τ             = 0;
     real_t sum_τ                 = 0;
+    unsigned fpr_shortcuts       = 0;
 };
 
 /// Second order PANOC solver for ALM.
@@ -123,12 +130,20 @@ class StructuredPANOCLBFGSSolver {
     const Params &get_params() const { return params; }
 
   private:
+    using indexvec = std::vector<vec::Index>;
+
     Params params;
     AtomicStopSignal stop_signal;
     std::function<void(const ProgressInfo &)> progress_cb;
 
   public:
     LBFGS lbfgs;
+
+  private:
+    void compute_quasi_newton_step(const Problem &problem, real_t γₖ, crvec xₖ,
+                                   crvec y, crvec Σ, crvec grad_ψₖ, crvec pₖ,
+                                   rvec qₖ, indexvec &J, rvec HqK, rvec work_n,
+                                   rvec work_n2, rvec work_m);
 };
 
 template <class InnerSolverStats>
@@ -156,6 +171,8 @@ struct InnerStatsAccumulator<StructuredPANOCLBFGSStats> {
     /// The sum of the line search parameter @f$ \tau @f$ in all iterations
     /// (used for computing the average value of @f$ \tau @f$).
     real_t sum_τ = 0;
+    /// Total number of fast steps (without line search).
+    unsigned fpr_shortcuts = 0;
 };
 
 inline InnerStatsAccumulator<StructuredPANOCLBFGSStats> &
@@ -169,6 +186,7 @@ operator+=(InnerStatsAccumulator<StructuredPANOCLBFGSStats> &acc,
     acc.τ_1_accepted += s.τ_1_accepted;
     acc.count_τ += s.count_τ;
     acc.sum_τ += s.sum_τ;
+    acc.fpr_shortcuts += s.fpr_shortcuts;
     return acc;
 }
 

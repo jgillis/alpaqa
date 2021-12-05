@@ -181,6 +181,7 @@ operator<<(YAML::Emitter &out,
     out << YAML::Key << "τ_1_accepted" << YAML::Value << s.τ_1_accepted;
     out << YAML::Key << "sum_τ" << YAML::Value << s.sum_τ;
     out << YAML::Key << "count_τ" << YAML::Value << s.count_τ;
+    out << YAML::Key << "fpr_shortcuts" << YAML::Value << s.fpr_shortcuts;
     out << YAML::EndMap;
     return out;
 }

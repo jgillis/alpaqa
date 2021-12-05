@@ -19,8 +19,8 @@ namespace alpaqa {
 template <class InnerSolver>
 auto InnerSolverCallWrapper() {
     return [](InnerSolver &solver, const alpaqa::Problem &p, alpaqa::crvec Σ,
-              alpaqa::real_t ε, alpaqa::vec x,
-              alpaqa::vec y) -> std::tuple<alpaqa::vec, alpaqa::vec, alpaqa::vec, py::dict> {
+              alpaqa::real_t ε, alpaqa::vec x, alpaqa::vec y)
+               -> std::tuple<alpaqa::vec, alpaqa::vec, alpaqa::vec, py::dict> {
         alpaqa::vec z(p.m);
         auto stats = solver(p, Σ, ε, true, x, y, z);
         return std::make_tuple(std::move(x), std::move(y), std::move(z),
@@ -56,9 +56,10 @@ class PolymorphicInnerSolverBase
         unsigned iterations;
 
         static Stats from_dict(py::dict d) {
-            using PolyStats    = alpaqa::PolymorphicInnerSolverStatsBase;
-            using PolyAccStats = alpaqa::PolymorphicInnerSolverStatsAccumulatorBase;
-            using InnerStats   = alpaqa::PolymorphicInnerSolverBase::Stats;
+            using PolyStats = alpaqa::PolymorphicInnerSolverStatsBase;
+            using PolyAccStats =
+                alpaqa::PolymorphicInnerSolverStatsAccumulatorBase;
+            using InnerStats = alpaqa::PolymorphicInnerSolverBase::Stats;
             struct AccStats : PolyAccStats {
                 AccStats(py::dict dict) : dict(std::move(dict)) {}
                 py::dict dict;
@@ -232,6 +233,7 @@ inline py::dict stats_to_dict(const StructuredPANOCLBFGSSolver::Stats &s) {
         "τ_1_accepted"_a        = s.τ_1_accepted,
         "count_τ"_a             = s.count_τ,
         "sum_τ"_a               = s.sum_τ,
+        "fpr_shortcuts"_a       = s.fpr_shortcuts,
     };
 }
 
@@ -268,6 +270,7 @@ inline py::dict stats_to_dict(
         "τ_1_accepted"_a        = s.τ_1_accepted,
         "count_τ"_a             = s.count_τ,
         "sum_τ"_a               = s.sum_τ,
+        "fpr_shortcuts"_a       = s.fpr_shortcuts,
     };
 }
 

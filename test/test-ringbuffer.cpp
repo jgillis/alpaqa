@@ -1,9 +1,145 @@
 #include <algorithm>
 #include <gtest/gtest.h>
 
-#include <iterator>
 #include <alpaqa/util/ringbuffer.hpp>
+#include <iterator>
 #include <type_traits>
+
+TEST(MaxHistory, updown) {
+    alpaqa::MaxHistory<int> m(3);
+    m.add(1);
+    EXPECT_EQ(m.max(), 1);
+    m.add(2);
+    EXPECT_EQ(m.max(), 2);
+    m.add(3);
+    EXPECT_EQ(m.max(), 3);
+    m.add(4);
+    EXPECT_EQ(m.max(), 4);
+    m.add(5);
+    EXPECT_EQ(m.max(), 5);
+    m.add(5);
+    EXPECT_EQ(m.max(), 5);
+    m.add(6);
+    EXPECT_EQ(m.max(), 6);
+    m.add(7);
+    EXPECT_EQ(m.max(), 7);
+    m.add(8);
+    EXPECT_EQ(m.max(), 8);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(8);
+    EXPECT_EQ(m.max(), 9);
+    m.add(8);
+    EXPECT_EQ(m.max(), 9);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(8);
+    EXPECT_EQ(m.max(), 9);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(8);
+    EXPECT_EQ(m.max(), 9);
+    m.add(7);
+    EXPECT_EQ(m.max(), 9);
+    m.add(6);
+    EXPECT_EQ(m.max(), 8);
+    m.add(5);
+    EXPECT_EQ(m.max(), 7);
+    m.add(4);
+    EXPECT_EQ(m.max(), 6);
+    m.add(3);
+    EXPECT_EQ(m.max(), 5);
+}
+
+TEST(MaxHistory, updown2) {
+    alpaqa::MaxHistory<int> m(999);
+    m.add(1);
+    EXPECT_EQ(m.max(), 1);
+    m.add(2);
+    EXPECT_EQ(m.max(), 2);
+    m.add(3);
+    EXPECT_EQ(m.max(), 3);
+    m.add(4);
+    EXPECT_EQ(m.max(), 4);
+    m.add(5);
+    EXPECT_EQ(m.max(), 5);
+    m.add(5);
+    EXPECT_EQ(m.max(), 5);
+    m.add(6);
+    EXPECT_EQ(m.max(), 6);
+    m.add(7);
+    EXPECT_EQ(m.max(), 7);
+    m.add(8);
+    EXPECT_EQ(m.max(), 8);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 10);
+    m.add(8);
+    EXPECT_EQ(m.max(), 10);
+    m.add(100);
+    EXPECT_EQ(m.max(), 100);
+}
+
+TEST(MaxHistory, downup) {
+    alpaqa::MaxHistory<int> m(3);
+    m.add(10);
+    EXPECT_EQ(m.max(), 10);
+    m.add(9);
+    EXPECT_EQ(m.max(), 10);
+    m.add(8);
+    EXPECT_EQ(m.max(), 10);
+    m.add(7);
+    EXPECT_EQ(m.max(), 9);
+    m.add(6);
+    EXPECT_EQ(m.max(), 8);
+    m.add(5);
+    EXPECT_EQ(m.max(), 7);
+    m.add(4);
+    EXPECT_EQ(m.max(), 6);
+    m.add(7);
+    EXPECT_EQ(m.max(), 7);
+    m.add(8);
+    EXPECT_EQ(m.max(), 8);
+    m.add(9);
+    EXPECT_EQ(m.max(), 9);
+}
 
 auto circular  = [](alpaqa::CircularIndices<int> i) { return i.circular; };
 auto zerobased = [](alpaqa::CircularIndices<int> i) { return i.zerobased; };

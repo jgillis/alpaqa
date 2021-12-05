@@ -777,6 +777,12 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite(
             "nonmonotone_linesearch",
             &alpaqa::StructuredPANOCLBFGSParams::nonmonotone_linesearch)
+        .def_readwrite(
+            "fpr_shortcut_accept_factor",
+            &alpaqa::StructuredPANOCLBFGSParams::fpr_shortcut_accept_factor)
+        .def_readwrite(
+            "fpr_shortcut_history",
+            &alpaqa::StructuredPANOCLBFGSParams::fpr_shortcut_history)
         .def_readwrite("stop_crit",
                        &alpaqa::StructuredPANOCLBFGSParams::stop_crit)
         .def_readwrite("max_no_progress",

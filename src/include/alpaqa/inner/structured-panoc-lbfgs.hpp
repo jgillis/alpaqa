@@ -3,6 +3,7 @@
 #include <alpaqa/inner/decl/structured-panoc-lbfgs.hpp>
 #include <alpaqa/inner/detail/panoc-helpers.hpp>
 #include <alpaqa/inner/directions/lbfgs.hpp>
+#include <alpaqa/util/ringbuffer.hpp>
 
 #include <cassert>
 #include <cmath>
@@ -14,6 +15,105 @@ namespace alpaqa {
 
 using std::chrono::duration_cast;
 using std::chrono::microseconds;
+
+inline void StructuredPANOCLBFGSSolver::compute_quasi_newton_step(
+    /// [in]    Problem description
+    const Problem &problem,
+    /// [in]    Step size
+    real_t γₖ,
+    /// [in]    Current iterate
+    crvec xₖ,
+    /// [in]    Lagrange multipliers
+    crvec y,
+    /// [in]    Penalty weights
+    crvec Σ,
+    /// [in]    Gradient at current iterate
+    crvec grad_ψₖ,
+    /// [in]    Projected gradient
+    crvec pₖ,
+    /// [out]   Quasi-Newton step
+    rvec qₖ,
+    /// [out]   Indices of active constraints
+    indexvec &J,
+    /// [out]   Hessian-vector product of active constraints
+    rvec HqK,
+    ///         Dimension n
+    rvec work_n,
+    ///         Dimension n
+    rvec work_n2,
+    ///         Dimension m
+    rvec work_m) {
+
+    unsigned n = problem.n, m = problem.m;
+    J.clear();
+    // Find inactive indices J
+    for (vec::Index i = 0; i < n; ++i) {
+        real_t gd = xₖ(i) - γₖ * grad_ψₖ(i);
+        if (gd <= problem.C.lowerbound(i)) {        // i ∊ J̲ ⊆ K
+            qₖ(i) = pₖ(i);                          //
+        } else if (problem.C.upperbound(i) <= gd) { // i ∊ J̅ ⊆ K
+            qₖ(i) = pₖ(i);                          //
+        } else {                                    // i ∊ J
+            J.push_back(i);
+            qₖ(i) = params.hessian_vec ? 0 : -grad_ψₖ(i);
+        }
+    }
+
+    if (not J.empty()) {     // There are inactive indices J
+        if (J.size() == n) { // There are no active indices K
+            qₖ = -grad_ψₖ;
+        } else if (params.hessian_vec) { // There are active indices K
+            if (params.hessian_vec_finite_differences) {
+                detail::calc_augmented_lagrangian_hessian_prod_fd(
+                    problem, xₖ, y, Σ, grad_ψₖ, qₖ, HqK, work_n, work_n2,
+                    work_m);
+            } else {
+                problem.eval_hess_L_prod(xₖ, y, qₖ, HqK);
+                if (params.full_augmented_hessian) {
+                    auto &g = work_m;
+                    problem.eval_g(xₖ, g);
+                    for (vec::Index i = 0; i < m; ++i) {
+                        real_t ζ      = g(i) + y(i) / Σ(i);
+                        bool inactive = problem.D.lowerbound(i) < ζ &&
+                                        ζ < problem.D.upperbound(i);
+                        if (not inactive) {
+                            problem.eval_grad_gi(xₖ, i, work_n);
+                            auto t = Σ(i) * work_n.dot(qₖ);
+                            // TODO: the dot product is more work than
+                            //       strictly necessary (only over K)
+                            for (auto j : J)
+                                HqK(j) += work_n(j) * t;
+                        }
+                    }
+                }
+            }
+
+            for (auto j : J) // Compute right-hand side of 6.1c
+                qₖ(j) = -grad_ψₖ(j) - HqK(j);
+        }
+
+        real_t stepsize =
+            params.lbfgs_stepsize == LBFGSStepSize::BasedOnGradientStepSize
+                ? γₖ
+                : -1;
+        // If all indices are inactive, we can use standard L-BFGS,
+        // if there are active indices, we need the specialized version
+        // that only applies L-BFGS to the inactive indices
+        bool success = lbfgs.apply(qₖ, stepsize, J);
+        // If L-BFGS application failed, qₖ(J) still contains
+        // -∇ψ(x)(J) - HqK(J) or -∇ψ(x)(J), which is not a valid step.
+        // A good alternative is to use H₀ = γI as an L-BFGS estimate.
+        // This seems to be better than just falling back to a projected
+        // gradient step.
+        if (not success) {
+            if (J.size() == n)
+                qₖ *= γₖ;
+            else
+                for (auto j : J)
+                    qₖ(j) *= γₖ;
+        }
+    }
+}
 
 inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
     /// [in]    Problem description
@@ -62,7 +162,6 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
     vec work_n2(n);
     vec HqK(n);
 
-    using indexvec = std::vector<vec::Index>;
     indexvec J;
     J.reserve(n);
     lbfgs.resize(n);
@@ -88,6 +187,9 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
     };
     auto calc_x̂ = [&problem](real_t γ, crvec x, crvec grad_ψ, rvec x̂, rvec p) {
         detail::calc_x̂(problem, γ, x, grad_ψ, x̂, p);
+    };
+    auto proj_grad_step = [&problem](real_t γ, crvec x, crvec grad_ψ) {
+        return detail::projected_gradient_step(problem.C, γ, x, grad_ψ);
     };
     auto calc_err_z = [&problem, &y, &Σ](crvec x̂, rvec err_z) {
         detail::calc_err_z(problem, x̂, y, Σ, err_z);
@@ -144,6 +246,12 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
     // Compute forward-backward envelope
     real_t φₖ   = ψₖ + 1 / (2 * γₖ) * pₖᵀpₖ + grad_ψₖᵀpₖ;
     real_t nmΦₖ = φₖ;
+    // History of FPR norms
+    MaxHistory<real_t> fpr_buffer(params.fpr_shortcut_accept_factor //
+                                      ? params.fpr_shortcut_history
+                                      : 0);
+    if (params.fpr_shortcut_accept_factor && params.fpr_shortcut_history)
+        fpr_buffer.add(proj_grad_step(1, xₖ, grad_ψₖ).norm());
 
     // Main PANOC loop
     // =========================================================================
@@ -253,74 +361,8 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
         // Calculate Newton step -----------------------------------------------
 
         if (k > 0) { // No L-BFGS estimate on first iteration → no Newton step
-            J.clear();
-            // Find inactive indices J
-            for (vec::Index i = 0; i < n; ++i) {
-                real_t gd = xₖ(i) - γₖ * grad_ψₖ(i);
-                if (gd < problem.C.lowerbound(i)) {        // i ∊ J̲ ⊆ K
-                    qₖ(i) = pₖ(i);                         //
-                } else if (problem.C.upperbound(i) < gd) { // i ∊ J̅ ⊆ K
-                    qₖ(i) = pₖ(i);                         //
-                } else {                                   // i ∊ J
-                    J.push_back(i);
-                    qₖ(i) = params.hessian_vec ? 0 : -grad_ψₖ(i);
-                }
-            }
-
-            if (not J.empty()) {     // There are inactive indices J
-                if (J.size() == n) { // There are no active indices K
-                    qₖ = -grad_ψₖ;
-                } else if (params.hessian_vec) { // There are active indices K
-                    if (params.hessian_vec_finite_differences) {
-                        detail::calc_augmented_lagrangian_hessian_prod_fd(
-                            problem, xₖ, y, Σ, grad_ψₖ, qₖ, HqK, work_n,
-                            work_n2, work_m);
-                    } else {
-                        problem.eval_hess_L_prod(xₖ, y, qₖ, HqK);
-                        if (params.full_augmented_hessian) {
-                            auto &g = work_m;
-                            problem.eval_g(xₖ, g);
-                            for (vec::Index i = 0; i < m; ++i) {
-                                real_t ζ      = g(i) + y(i) / Σ(i);
-                                bool inactive = problem.D.lowerbound(i) < ζ &&
-                                                ζ < problem.D.upperbound(i);
-                                if (not inactive) {
-                                    problem.eval_grad_gi(xₖ, i, work_n);
-                                    auto t = Σ(i) * work_n.dot(qₖ);
-                                    // TODO: the dot product is more work than
-                                    //       strictly necessary (only over K)
-                                    for (auto j : J)
-                                        HqK(j) += work_n(j) * t;
-                                }
-                            }
-                        }
-                    }
-
-                    for (auto j : J) // Compute right-hand side of 6.1c
-                        qₖ(j) = -grad_ψₖ(j) - HqK(j);
-                }
-
-                real_t stepsize = params.lbfgs_stepsize ==
-                                          LBFGSStepSize::BasedOnGradientStepSize
-                                      ? γₖ
-                                      : -1;
-                // If all indices are inactive, we can use standard L-BFGS,
-                // if there are active indices, we need the specialized version
-                // that only applies L-BFGS to the inactive indices
-                bool success = lbfgs.apply(qₖ, stepsize, J);
-                // If L-BFGS application failed, qₖ(J) still contains
-                // -∇ψ(x)(J) - HqK(J) or -∇ψ(x)(J), which is not a valid step.
-                // A good alternative is to use H₀ = γI as an L-BFGS estimate.
-                // This seems to be better than just falling back to a projected
-                // gradient step.
-                if (not success) {
-                    if (J.size() == n)
-                        qₖ *= γₖ;
-                    else
-                        for (auto j : J)
-                            qₖ(j) *= γₖ;
-                }
-            }
+            compute_quasi_newton_step(problem, γₖ, xₖ, y, Σ, grad_ψₖ, pₖ, qₖ, J,
+                                      HqK, work_n, work_n2, work_m);
         }
 
         // Line search initialization ------------------------------------------
@@ -347,6 +389,7 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
 
         // Line search loop ----------------------------------------------------
         unsigned last_γ_changeₖ₊₁;
+        bool fpr_shortcut = false;
         do {
             last_γ_changeₖ₊₁ = last_γ_change;
             Lₖ₊₁             = Lₖ;
@@ -396,8 +439,19 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
             if (params.alternative_linesearch_cond)
                 ls_cond -= (0.5 / γₖ₊₁ - 0.5 / γₖ) * pₖ₊₁ᵀpₖ₊₁_ₖ;
 
+            real_t fpr1_new = params.fpr_shortcut_accept_factor && τ == 1
+                                  ? proj_grad_step(1, xₖ₊₁, grad_ψₖ₊₁).norm()
+                                  : inf;
+
+            fpr_shortcut =
+                fpr1_new < params.fpr_shortcut_accept_factor * fpr_buffer.max();
+            if (fpr_shortcut) {
+                fpr_buffer.add(fpr1_new);
+                ++s.fpr_shortcuts;
+            }
+
             τ /= 2;
-        } while (ls_cond > margin && τ >= params.τ_min);
+        } while (ls_cond > margin && !fpr_shortcut && τ >= params.τ_min);
 
         // If τ < τ_min the line search failed and we accepted the prox step
         if (τ < params.τ_min && k != 0) {
