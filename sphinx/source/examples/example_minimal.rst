@@ -12,7 +12,7 @@ The problem we will tackle is the following
         &\min_{x,y} &&  (1 - x)^2 + p  (y -x^2)^2 \\ 
         &\text{s.t.} && (x-1)^3 - y + 1 \leq 0 \\ 
         &            && x + y - 2 \leq 0 \\
-        &           && 1.5 \leq x \leq 1.5  \\ 
+        &           && -1.5 \leq x \leq 1.5  \\ 
         &           && -0.5 \leq y \leq 2.5 
     \end{aligned}
 
@@ -78,32 +78,9 @@ We set some initial guesses for the problem and run the optimization::
     # Solve the problem
     x_sol, y_sol, stats = solver(prob, x_sol, y_sol)
 
-Finally, we print and plot the resulting solution to verify correctness of our script::
+Finally, we print the solution and the obtained tolerances::
 
     print(stats["status"])
-
-    print(f"Obtained solution: {x_sol}")
-    print(f"Analytical solution: {(1., 1.)}")
-
-    # Plot the results
-    import matplotlib.pyplot as plt
-
-    x = np.linspace(-1.5, 1.5, 200)
-    y = np.linspace(-0.5, 2.5, 200)
-    X, Y = np.meshgrid(x, y)
-    Z = (1 - X) ** 2 + 100 * (Y - X ** 2) ** 2
-
-    plt.figure()
-
-    plt.contourf(X, Y, Z)
-    plt.colorbar()
-    plt.xlabel("x")
-    plt.ylabel("y")
-    plt.scatter(1, 1, color="tab:red", label="Analytic")
-    plt.scatter(x_sol[0], x_sol[1], marker="x", color="tab:green", label="alpaqa")
-    plt.legend()
-    plt.show()
-
-.. image:: ../img/example_minimal.svg 
-    :width: 100%
-    :alt: Contour plot of the result
+    print(f"Solution: {x_sol}")
+    print(f"ε:        {stats['ε']}")
+    print(f"δ:        {stats['δ']}")

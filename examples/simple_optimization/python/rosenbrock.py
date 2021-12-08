@@ -83,7 +83,7 @@ x_sol, y_sol, stats = solver(prob, x0, y0)
 print(stats["status"])
 print(f"Solution:      {x_sol}")
 print(f"Multipliers:   {y_sol}")
-print(f"Cost:          {prob.f(x_sol)}")
+print(f"Cost:          {prob.eval_f(x_sol)}")
 from pprint import pprint
 pprint(stats)
 
@@ -92,8 +92,16 @@ pprint(stats)
 import matplotlib.pyplot as plt
 from matplotlib import patheffects
 
-cost_function_v = np.vectorize(prob.f, signature='(n)->()')
-constraint_g_v = np.vectorize(prob.g, signature='(n)->(m)')
+def eval_f(x):
+    return prob.eval_f(x)
+
+def eval_g(x):
+    g = np.empty((prob.m,))
+    prob.eval_g(x, g)
+    return g
+
+cost_function_v = np.vectorize(eval_f, signature='(n)->()')
+constraint_g_v = np.vectorize(eval_g, signature='(n)->(m)')
 
 x = np.linspace(-1.5, 1.5, 256)
 y = np.linspace(-0.5, 2.5, 256)

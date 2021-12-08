@@ -60,5 +60,5 @@ outer iterations: {stats['outer_iterations']}
 elapsed time:     {stats['elapsed_time']}
 x = {x_sol}
 y = {y_sol}
-f = {problem.f(x_sol)}
+f = {problem.eval_f(x_sol)}
 """)

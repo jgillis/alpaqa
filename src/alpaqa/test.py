@@ -309,6 +309,59 @@ pprint(stats)
 
 # %%
 
+# Rosenbrock without general constraints
+x1, x2 = cs.SX.sym("x1"), cs.SX.sym("x2")
+p = cs.SX.sym("p")
+f_expr = (1 - x1) ** 2 + p * (x2 - x1 ** 2) ** 2
+x = cs.vertcat(x1, x2)
+f = cs.Function("f", [x, p], [f_expr])
+g = None
+prob = pa.generate_and_compile_casadi_problem(f, g)
+
+prob.C.lowerbound = [-0.25, -0.5]       # -0.25 <= x1 <= 0.9
+prob.C.upperbound = [0.9, 0.8]          # -0.5  <= x2 <= 0.8
+prob.param = [100.]
+
+inner_solver = pa.StructuredPANOCLBFGSSolver(
+    panoc_params={
+        'max_iter': 1000,
+        'stop_crit': pa.PANOCStopCrit.ApproxKKT,
+    },
+    lbfgs_params={
+        'memory': 10,
+    },
+)
+
+solver = pa.ALMSolver(
+    alm_params={
+        'ε': 1e-14,
+        'δ': 1e-14,
+        'Σ_0': 0,
+        'σ_0': 2,
+        'Δ': 20,
+    },
+    inner_solver=inner_solver
+)
+
+x0 = np.array([0.1, 1.8]) # decision variables
+x_sol, y_sol, stats = solver(prob, x0)
+
+# Print the results
+print(stats["status"])
+print(f"Solution:      {x_sol}")
+print(f"Multipliers:   {y_sol}")
+print(f"Cost:          {prob.eval_f(x_sol)}")
+print(f"ε:             {stats['ε']}")
+print(f"δ:             {stats['δ']}")
+err = np.linalg.norm(x_sol - [0.8947558975956834, 0.8])
+print(err)
+assert err <= 1e-12
+from pprint import pprint
+pprint(stats)
+
+
+# %%
+
 try:
     pa.PANOCParams(max_iter=1e3)
     assert False
@@ -319,7 +372,7 @@ except RuntimeError as e:
 
 p = pa.Problem(2, 2)
 try:
-    p.eval_f(x)
+    p.eval_f(x_sol)
     assert False
 except NotImplementedError as e:
     print(type(e), e)
