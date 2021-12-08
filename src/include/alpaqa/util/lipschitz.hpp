@@ -13,6 +13,10 @@ struct LipschitzEstimateParams {
     real_t δ = 1e-12;
     /// Factor that relates step size γ and Lipschitz constant.
     real_t Lγ_factor = 0.95;
+
+    void verify() const {
+        // TODO
+    }
 };
 
 } // namespace alpaqa

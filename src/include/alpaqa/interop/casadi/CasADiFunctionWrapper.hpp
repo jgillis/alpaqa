@@ -19,9 +19,7 @@ class CasADiFunctionEvaluator {
     using casadi_dim = std::pair<casadi_int, casadi_int>;
 
     /// @throws std::invalid_argument
-    CasADiFunctionEvaluator(casadi::Function &&f,
-                            const std::array<casadi_dim, N_in> &dim_in   = {},
-                            const std::array<casadi_dim, N_out> &dim_out = {})
+    CasADiFunctionEvaluator(casadi::Function &&f)
         : fun(std::move(f)), iwork(fun.sz_iw()), dwork(fun.sz_w()) {
         using std::operator""s;
         if (N_in != fun.n_in())
@@ -34,6 +32,13 @@ class CasADiFunctionEvaluator {
                 "Invalid number of output arguments: got "s +
                 std::to_string(fun.n_out()) + ", should be " +
                 std::to_string(N_out) + ".");
+    }
+
+    /// @throws std::invalid_argument
+    CasADiFunctionEvaluator(casadi::Function &&f,
+                            const std::array<casadi_dim, N_in> &dim_in,
+                            const std::array<casadi_dim, N_out> &dim_out)
+        : CasADiFunctionEvaluator{std::move(f)} {
         validate_dimensions(dim_in, dim_out);
     }
 

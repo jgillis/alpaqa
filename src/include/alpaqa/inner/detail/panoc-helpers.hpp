@@ -68,6 +68,9 @@ inline void calc_err_z(const Problem &p, ///< [in]  Problem description
                        crvec Σ,   ///< [in]  Penalty weights @f$ \Sigma @f$
                        rvec err_z ///< [out] @f$ g(\hat{x}) - \hat{z} @f$
 ) {
+    if (p.m == 0)
+        return;
+
     // g(x̂)
     p.eval_g(x̂, err_z);
     // ζ = g(x̂) + Σ⁻¹y

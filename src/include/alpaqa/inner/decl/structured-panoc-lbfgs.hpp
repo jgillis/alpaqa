@@ -61,6 +61,8 @@ struct StructuredPANOCLBFGSParams {
     unsigned hessian_step_size_heuristic = 0;
 
     LBFGSStepSize lbfgs_stepsize = LBFGSStepSize::BasedOnCurvature;
+
+    void verify() const;
 };
 
 struct StructuredPANOCLBFGSProgressInfo {
@@ -107,7 +109,9 @@ class StructuredPANOCLBFGSSolver {
     using ProgressInfo = StructuredPANOCLBFGSProgressInfo;
 
     StructuredPANOCLBFGSSolver(Params params, LBFGSParams lbfgsparams)
-        : params(params), lbfgs(lbfgsparams) {}
+        : params(params), lbfgs(lbfgsparams) {
+        params.verify();
+    }
 
     Stats operator()(const Problem &problem,        // in
                      crvec Σ,                       // in

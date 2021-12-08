@@ -16,6 +16,23 @@ typename ALMSolver<InnerSolverT>::Stats
 ALMSolver<InnerSolverT>::operator()(const Problem &p, rvec y, rvec x) {
     auto start_time = std::chrono::steady_clock::now();
 
+    if (p.m == 0) { // No general constraints, only box constraints
+        Stats s;
+        vec Σ(0), error(0);
+        auto ps = inner_solver(p, Σ, params.ε, true, x, y, error);
+        bool inner_converged = ps.status == SolverStatus::Converged;
+        auto time_elapsed    = std::chrono::steady_clock::now() - start_time;
+        s.inner_convergence_failures = not inner_converged;
+        s.inner += ps;
+        s.ε                = ps.ε;
+        s.δ                = 0;
+        s.norm_penalty     = 0;
+        s.outer_iterations = 1;
+        s.elapsed_time     = duration_cast<microseconds>(time_elapsed);
+        s.status           = ps.status;
+        return s;
+    }
+
     constexpr auto sigNaN = std::numeric_limits<real_t>::signaling_NaN();
     vec Σ                 = vec::Constant(p.m, sigNaN);
     vec Σ_old             = vec::Constant(p.m, sigNaN);

@@ -178,7 +178,8 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("C", &alpaqa::Problem::C, "Box constraints on :math:`x`")
         .def_readwrite("D", &alpaqa::Problem::D,
                        "Box constraints on :math:`g(x)`")
-        .def("eval_f", &alpaqa::Problem::eval_f);
+        .def("eval_f", &alpaqa::Problem::eval_f)
+        .def("eval_g", &alpaqa::Problem::eval_g);
 
     py::class_<alpaqa::ProblemWithParam, alpaqa::Problem,
                ProblemTrampoline<alpaqa::ProblemWithParam>>(

@@ -15,6 +15,7 @@ from ..casadi_generator import generate_casadi_problem
 
 
 def _load_casadi_problem(sofile, n, m, p, counted):
+    print("-- Loading:", sofile)
     prob = pa.load_casadi_problem(sofile, n=n, m=m, p=p, counted=counted)
     return prob
 
@@ -25,7 +26,7 @@ def generate_and_compile_casadi_problem(
     second_order: bool = False,
     counted: bool = True,
     name: str = "alpaqa_problem",
-) -> Union[pa.CasADiProblem,pa.CasADiProblemWithCounters]:
+) -> Union[pa.CasADiProblem, pa.CasADiProblemWithCounters]:
     """Compile the objective and constraint functions into a alpaqa Problem.
 
     :param f:            Objective function.

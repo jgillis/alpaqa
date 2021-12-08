@@ -52,6 +52,8 @@ struct CasADiProblem : ProblemWithParam {
                          rvec work_m) const override;
     void eval_grad_L(crvec x, crvec y, rvec grad_L, rvec work_n) const override;
     real_t eval_ψ_ŷ(crvec x, crvec y, crvec Σ, rvec ŷ) const override;
+    void eval_grad_ψ_from_ŷ(crvec x, crvec ŷ, rvec grad_ψ,
+                            rvec work_n) const override;
 
   private:
     std::unique_ptr<struct CasADiFunctionsWithParam> impl;
