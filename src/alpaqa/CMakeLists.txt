@@ -71,11 +71,13 @@ if (ALPAQA_PYBIND11_RESULT EQUAL 0)
         install(TARGETS _alpaqa
                 DESTINATION .)
         if (ALPAQA_GEN_STUB)
-            install(FILES ${STUBS_DIR}/alpaqa/__init__.pyi
-                          ${STUBS_DIR}/alpaqa/casadi_loader/__init__.pyi
-                          ${STUBS_DIR}/alpaqa/casadi_generator/__init__.pyi
-                          ${STUBS_DIR}/alpaqa/_alpaqa.pyi
-                    DESTINATION .)
+            install(FILES   ${STUBS_DIR}/alpaqa/__init__.pyi
+                            ${STUBS_DIR}/alpaqa/_alpaqa.pyi
+                DESTINATION .)
+            install(FILES   ${STUBS_DIR}/alpaqa/casadi_loader/__init__.pyi
+                DESTINATION casadi_loader)
+            install(FILES   ${STUBS_DIR}/alpaqa/casadi_generator/__init__.pyi
+                DESTINATION casadi_generator)
         endif()
     endif()
 else()
