@@ -17,6 +17,8 @@ using std::chrono::duration_cast;
 using std::chrono::microseconds;
 
 inline void StructuredPANOCLBFGSSolver::compute_quasi_newton_step(
+    /// [in]    Solver parameters
+    const Params &params,
     /// [in]    Problem description
     const Problem &problem,
     /// [in]    Step size
@@ -33,10 +35,12 @@ inline void StructuredPANOCLBFGSSolver::compute_quasi_newton_step(
     crvec pₖ,
     /// [out]   Quasi-Newton step
     rvec qₖ,
-    /// [out]   Indices of active constraints
+    /// [out]   Indices of active constraints, size at least n
     indexvec &J,
     /// [out]   Hessian-vector product of active constraints
     rvec HqK,
+    /// [inout] L-BFGS estimate to apply
+    LBFGS &lbfgs,
     ///         Dimension n
     rvec work_n,
     ///         Dimension n
@@ -142,7 +146,7 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
     // TODO: the L-BFGS objects and vectors allocate on each iteration of ALM,
     //       and there are more vectors than strictly necessary.
 
-    bool need_grad_̂ψₖ = detail::stop_crit_requires_grad_̂ψₖ(params.stop_crit);
+    bool need_grad_̂ψₖ = detail::stop_crit_requires_grad_ψx̂(params.stop_crit);
 
     vec xₖ = x,   // Value of x at the beginning of the iteration
         x̂ₖ(n),    // Value of x after a projected gradient step
@@ -152,7 +156,7 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
         ŷx̂ₖ₊₁(m), // ŷ(x̂ₖ) for next iteration
         pₖ(n),    // Projected gradient step pₖ = x̂ₖ - xₖ
         pₖ₊₁(n), // Projected gradient step pₖ₊₁ = x̂ₖ₊₁ - xₖ₊₁
-        qₖ(n),   // Newton step Hₖ pₖ
+        qₖ = vec::Constant(n, NaN),    // Newton step Hₖ pₖ
         grad_ψₖ(n),                    // ∇ψ(xₖ)
         grad_̂ψₖ(need_grad_̂ψₖ ? n : 0), // ∇ψ(x̂ₖ)
         grad_ψₖ₊₁(n);                  // ∇ψ(xₖ₊₁)
@@ -332,9 +336,12 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
         // Print progress
         if (params.print_interval != 0 && k % params.print_interval == 0)
             print_progress(k, ψₖ, grad_ψₖ, pₖᵀpₖ, γₖ, εₖ);
-        if (progress_cb)
-            progress_cb({k, xₖ, pₖ, pₖᵀpₖ, x̂ₖ, φₖ, ψₖ, grad_ψₖ, ψx̂ₖ, grad_̂ψₖ,
-                         Lₖ, γₖ, τ, εₖ, Σ, y, problem, params});
+        if (progress_cb) {
+            Eigen::Map<idvec> mJ{J.data(), Eigen::Index(J.size())};
+            progress_cb({k,  xₖ, pₖ,      pₖᵀpₖ, x̂ₖ,      qₖ,    mJ,
+                         φₖ, ψₖ, grad_ψₖ, ψx̂ₖ,   grad_̂ψₖ, Lₖ,    γₖ,
+                         τ,  εₖ, Σ,       y,     problem, params});
+        }
 
         auto time_elapsed = std::chrono::steady_clock::now() - start_time;
         auto stop_status  = detail::check_all_stop_conditions(
@@ -361,8 +368,9 @@ inline StructuredPANOCLBFGSSolver::Stats StructuredPANOCLBFGSSolver::operator()(
         // Calculate Newton step -----------------------------------------------
 
         if (k > 0) { // No L-BFGS estimate on first iteration → no Newton step
-            compute_quasi_newton_step(problem, γₖ, xₖ, y, Σ, grad_ψₖ, pₖ, qₖ, J,
-                                      HqK, work_n, work_n2, work_m);
+            compute_quasi_newton_step(params, problem, γₖ, xₖ, y, Σ, grad_ψₖ,
+                                      pₖ, qₖ, J, HqK, lbfgs, work_n, work_n2,
+                                      work_m);
         }
 
         // Line search initialization ------------------------------------------

@@ -66,7 +66,7 @@ struct PANOCProgressInfo {
     crvec x;
     crvec p;
     real_t norm_sq_p;
-    crvec x_hat;
+    crvec x̂;
     real_t φγ;
     real_t ψ;
     crvec grad_ψ;

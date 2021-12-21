@@ -139,7 +139,7 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
 #endif
 
     py::register_exception<alpaqa::not_implemented_error>(
-        m, "NotImplementedError", PyExc_NotImplementedError);
+        m, "not_implemented_error", PyExc_NotImplementedError);
 
     py::class_<alpaqa::Box>(m, "Box",
                             "C++ documentation: :cpp:class:`alpaqa::Box`")
@@ -179,7 +179,60 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("D", &alpaqa::Problem::D,
                        "Box constraints on :math:`g(x)`")
         .def("eval_f", &alpaqa::Problem::eval_f)
-        .def("eval_g", &alpaqa::Problem::eval_g);
+        .def("eval_grad_f", &alpaqa::Problem::eval_grad_f)
+        .def("eval_grad_f",
+             [](const alpaqa::Problem &p, alpaqa::crvec x) {
+                 alpaqa::vec g(p.n);
+                 p.eval_grad_f(x, g);
+                 return g;
+             })
+        .def("eval_g", &alpaqa::Problem::eval_g)
+        .def("eval_g",
+             [](const alpaqa::Problem &p, alpaqa::crvec x) {
+                 alpaqa::vec g(p.m);
+                 p.eval_g(x, g);
+                 return g;
+             })
+        .def("eval_grad_g_prod", &alpaqa::Problem::eval_grad_g_prod)
+        .def("eval_grad_g_prod",
+             [](const alpaqa::Problem &p, alpaqa::crvec x, alpaqa::crvec y) {
+                 alpaqa::vec g(p.n);
+                 p.eval_grad_g_prod(x, y, g);
+                 return g;
+             })
+        .def("eval_ψ_ŷ", &alpaqa::Problem::eval_ψ_ŷ)
+        .def("eval_ψ_ŷ",
+             [](const alpaqa::Problem &p, alpaqa::crvec x, alpaqa::crvec y,
+                alpaqa::crvec Σ) {
+                 alpaqa::vec ŷ(p.m);
+                 auto ψ = p.eval_ψ_ŷ(x, y, Σ, ŷ);
+                 return std::make_tuple(ψ, ŷ);
+             })
+        .def("eval_grad_ψ_from_ŷ", &alpaqa::Problem::eval_grad_ψ_from_ŷ)
+        .def("eval_grad_ψ_from_ŷ",
+             [](const alpaqa::Problem &p, alpaqa::crvec x, alpaqa::crvec ŷ) {
+                 alpaqa::vec grad_ψ(p.n), work(p.n);
+                 p.eval_grad_ψ_from_ŷ(x, ŷ, grad_ψ, work);
+                 return grad_ψ;
+             })
+        .def("eval_grad_ψ", &alpaqa::Problem::eval_grad_ψ)
+        .def("eval_grad_ψ",
+             [](const alpaqa::Problem &p, alpaqa::crvec x, alpaqa::crvec y,
+                alpaqa::crvec Σ) {
+                 alpaqa::vec grad_ψ(p.n), work_n(p.n), work_m(p.m);
+                 p.eval_grad_ψ(x, y, Σ, grad_ψ, work_n, work_m);
+                 return grad_ψ;
+             })
+        .def("eval_ψ_grad_ψ", &alpaqa::Problem::eval_ψ_grad_ψ)
+        .def("eval_ψ_grad_ψ",
+             [](const alpaqa::Problem &p, alpaqa::crvec x, alpaqa::crvec y,
+                alpaqa::crvec Σ) {
+                 alpaqa::vec grad_ψ(p.n), work_n(p.n), work_m(p.m);
+                 auto ψ = p.eval_ψ_grad_ψ(x, y, Σ, grad_ψ, work_n, work_m);
+                 return std::make_tuple(ψ, grad_ψ);
+             })
+
+        ;
 
     py::class_<alpaqa::ProblemWithParam, alpaqa::Problem,
                ProblemTrampoline<alpaqa::ProblemWithParam>>(
@@ -396,6 +449,58 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readwrite("rescale_when_γ_changes",
                        &alpaqa::LBFGSParams::rescale_when_γ_changes);
 
+    auto lbfgs = py::class_<alpaqa::LBFGS>(
+        m, "LBFGS", "C++ documentation: :cpp:class:`alpaqa::LBFGS`");
+    auto lbfgssign = py::enum_<alpaqa::LBFGS::Sign>(
+        lbfgs, "Sign", "C++ documentation :cpp:enum:`alpaqa::LBFGS::Sign`");
+    lbfgssign //
+        .value("Positive", alpaqa::LBFGS::Sign::Positive)
+        .value("Negative", alpaqa::LBFGS::Sign::Negative)
+        .export_values();
+    lbfgs //
+        .def(py::init<alpaqa::LBFGS::Params>())
+        .def(py::init<alpaqa::LBFGS::Params, size_t>())
+        .def_static("update_valid", alpaqa::LBFGS::update_valid, "params"_a,
+                    "yᵀs"_a, "sᵀs"_a, "pᵀp"_a)
+        .def("update", &alpaqa::LBFGS::update, "xk"_a, "xkp1"_a, "pk"_a,
+             "pkp1"_a, "sign"_a, "forced"_a = false)
+        .def(
+            "apply",
+            [](alpaqa::LBFGS &lbfgs, alpaqa::rvec q, alpaqa::real_t γ) {
+                return lbfgs.apply(q, γ);
+            },
+            "q"_a, "γ"_a)
+        .def(
+            "apply",
+            [](alpaqa::LBFGS &lbfgs, alpaqa::rvec q, alpaqa::real_t γ,
+               const std::vector<alpaqa::vec::Index> &J) {
+                return lbfgs.apply(q, γ, J);
+            },
+            "q"_a, "γ"_a, "J"_a)
+        .def("reset", &alpaqa::LBFGS::reset)
+        .def("resize", &alpaqa::LBFGS::resize, "n"_a)
+        .def("scale_y", &alpaqa::LBFGS::scale_y, "factor"_a)
+        .def_property_readonly("n", &alpaqa::LBFGS::n)
+        .def_property_readonly("history", &alpaqa::LBFGS::history)
+        .def("s",
+             [](alpaqa::LBFGS &lbfgs, size_t i) -> alpaqa::rvec {
+                 return lbfgs.s(i);
+             })
+        .def("y",
+             [](alpaqa::LBFGS &lbfgs, size_t i) -> alpaqa::rvec {
+                 return lbfgs.y(i);
+             })
+        .def("ρ",
+             [](alpaqa::LBFGS &lbfgs, size_t i) -> alpaqa::real_t & {
+                 return lbfgs.ρ(i);
+             })
+        .def("α",
+             [](alpaqa::LBFGS &lbfgs, size_t i) -> alpaqa::real_t & {
+                 return lbfgs.α(i);
+             })
+        .def_property_readonly("__str__", &alpaqa::LBFGS::get_name)
+        .def_property_readonly("params", &alpaqa::LBFGS::get_params);
+
     py::class_<alpaqa::PolymorphicLBFGSDirection,
                std::shared_ptr<alpaqa::PolymorphicLBFGSDirection>,
                alpaqa::PolymorphicPANOCDirectionBase>(
@@ -521,7 +626,7 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readonly("x", &alpaqa::PGAProgressInfo::x)
         .def_readonly("p", &alpaqa::PGAProgressInfo::p)
         .def_readonly("norm_sq_p", &alpaqa::PGAProgressInfo::norm_sq_p)
-        .def_readonly("x_hat", &alpaqa::PGAProgressInfo::x_hat)
+        .def_readonly("x̂", &alpaqa::PGAProgressInfo::x̂)
         .def_readonly("ψ", &alpaqa::PGAProgressInfo::ψ)
         .def_readonly("grad_ψ", &alpaqa::PGAProgressInfo::grad_ψ)
         .def_readonly("ψ_hat", &alpaqa::PGAProgressInfo::ψ_hat)
@@ -564,7 +669,7 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readonly("x", &alpaqa::GAAPGAProgressInfo::x)
         .def_readonly("p", &alpaqa::GAAPGAProgressInfo::p)
         .def_readonly("norm_sq_p", &alpaqa::GAAPGAProgressInfo::norm_sq_p)
-        .def_readonly("x_hat", &alpaqa::GAAPGAProgressInfo::x_hat)
+        .def_readonly("x̂", &alpaqa::GAAPGAProgressInfo::x̂)
         .def_readonly("ψ", &alpaqa::GAAPGAProgressInfo::ψ)
         .def_readonly("grad_ψ", &alpaqa::GAAPGAProgressInfo::grad_ψ)
         .def_readonly("ψ_hat", &alpaqa::GAAPGAProgressInfo::ψ_hat)
@@ -591,7 +696,7 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readonly("norm_sq_p", &alpaqa::PANOCProgressInfo::norm_sq_p, //
                       ":math:`\\left\\|p\\right\\|^2`")
         .def_readonly(
-            "x_hat", &alpaqa::PANOCProgressInfo::x_hat, //
+            "x̂", &alpaqa::PANOCProgressInfo::x̂, //
             "Decision variable after projected gradient step :math:`\\hat x`")
         .def_readonly("φγ", &alpaqa::PANOCProgressInfo::φγ, //
                       "Forward-backward envelope :math:`\\varphi_\\gamma(x)`")
@@ -630,7 +735,9 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .def_readonly("p", &alpaqa::StructuredPANOCLBFGSProgressInfo::p)
         .def_readonly("norm_sq_p",
                       &alpaqa::StructuredPANOCLBFGSProgressInfo::norm_sq_p)
-        .def_readonly("x_hat", &alpaqa::StructuredPANOCLBFGSProgressInfo::x_hat)
+        .def_readonly("x̂", &alpaqa::StructuredPANOCLBFGSProgressInfo::x̂)
+        .def_readonly("q", &alpaqa::StructuredPANOCLBFGSProgressInfo::q)
+        .def_readonly("J", &alpaqa::StructuredPANOCLBFGSProgressInfo::J)
         .def_readonly("φγ", &alpaqa::StructuredPANOCLBFGSProgressInfo::φγ)
         .def_readonly("ψ", &alpaqa::StructuredPANOCLBFGSProgressInfo::ψ)
         .def_readonly("grad_ψ",
@@ -1072,4 +1179,35 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
     m.def("load_casadi_problem", load_CasADi_problem, "so_name"_a, "n"_a = 0,
           "m"_a = 0, "p"_a = 0, "second_order"_a = false, "counted"_a = true,
           "Load a compiled CasADi problem.\n\n");
+
+    m.def_submodule("detail",
+                    "C++ documentation: :cpp:namespace:`alpaqa::detail`")
+        .def(
+            "calc_err_z",
+            [](const alpaqa::Problem &p, alpaqa::crvec x̂, alpaqa::crvec y,
+               alpaqa::crvec Σ) {
+                alpaqa::vec e(p.m);
+                alpaqa::detail::calc_err_z(p, x̂, y, Σ, e);
+                return e;
+            },
+            "p"_a, "x̂"_a, "y"_a, "Σ"_a,
+            "C++ documentation: :cpp:function:`alpaqa::detail::calc_err_z`")
+        .def(
+            "projected_gradient_step",
+            [](const alpaqa::Box &C, alpaqa::real_t γ, alpaqa::crvec x,
+               alpaqa::crvec grad_ψ) -> alpaqa::vec {
+                return alpaqa::detail::projected_gradient_step(C, γ, x, grad_ψ);
+            },
+            "C"_a, "γ"_a, "x"_a, "grad_ψ"_a,
+            "C++ documentation: "
+            ":cpp:function:`alpaqa::detail::projected_gradient_step`")
+        .def("calc_error_stop_crit", &alpaqa::detail::calc_error_stop_crit,
+             "C"_a, "crit"_a, "p"_a, "γ"_a, "x"_a, "x̂"_a, "ŷ"_a, "grad_ψx"_a,
+             "grad_ψx̂"_a,
+             "C++ documentation: "
+             ":cpp:function:`alpaqa::detail::calc_error_stop_crit`")
+        .def("stop_crit_requires_grad_ψx̂",
+             &alpaqa::detail::stop_crit_requires_grad_ψx̂, "crit"_a,
+             "C++ documentation: "
+             ":cpp:function:`alpaqa::detail::stop_crit_requires_grad_ψx̂`");
 }

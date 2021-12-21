@@ -67,7 +67,7 @@ class SecondOrderPANOCSolver {
         crvec x;
         crvec p;
         real_t norm_sq_p;
-        crvec x_hat;
+        crvec x̂;
         real_t ψ;
         crvec grad_ψ;
         real_t ψ_hat;

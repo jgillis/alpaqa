@@ -5,23 +5,31 @@
 namespace alpaqa {
 
 /// Default floating point type
-using real_t         = double; // TODO: make template?
+using real_t = double; // TODO: make template?
 /// Default type for floating point vectors.
-using realvec        = Eigen::Matrix<real_t, Eigen::Dynamic, 1>;
+using realvec = Eigen::Matrix<real_t, Eigen::Dynamic, 1>;
 /// Default type for floating point matrices.
-using realmat        = Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic>;
+using realmat = Eigen::Matrix<real_t, Eigen::Dynamic, Eigen::Dynamic>;
 /// Default type for vectors.
-using vec            = realvec;
+using vec = realvec;
 /// Default type for mutable references to vectors.
-using rvec           = Eigen::Ref<vec>;
+using rvec = Eigen::Ref<vec>;
 /// Default type for immutable references to vectors.
-using crvec          = Eigen::Ref<const vec>;
+using crvec = Eigen::Ref<const vec>;
 /// Default type for matrices.
-using mat            = realmat;
+using mat = realmat;
 /// Default type for mutable references to matrices.
-using rmat           = Eigen::Ref<mat>;
+using rmat = Eigen::Ref<mat>;
 /// Default type for immutable references to matrices.
-using crmat          = Eigen::Ref<const mat>;
+using crmat = Eigen::Ref<const mat>;
+
+/// Type for a vector of indices.
+using idvec = Eigen::Matrix<Eigen::Index, Eigen::Dynamic, 1>;
+/// Mutable reference to vector indices.
+using ridvec = Eigen::Ref<idvec>;
+/// Immutable reference to vector indices.
+using cridvec = Eigen::Ref<const idvec>;
+
 /// @f$ \infty @f$
 constexpr real_t inf = std::numeric_limits<real_t>::infinity();
 /// Not a number.

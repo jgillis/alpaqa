@@ -49,7 +49,7 @@ PANOCSolver<DirectionProviderT>::operator()(
     // TODO: the L-BFGS objects and vectors allocate on each iteration of ALM,
     //       and there are more vectors than strictly necessary.
 
-    bool need_grad_̂ψₖ = detail::stop_crit_requires_grad_̂ψₖ(params.stop_crit);
+    bool need_grad_̂ψₖ = detail::stop_crit_requires_grad_ψx̂(params.stop_crit);
 
     vec xₖ = x,   // Value of x at the beginning of the iteration
         x̂ₖ(n),    // Value of x after a projected gradient step

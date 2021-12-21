@@ -111,7 +111,7 @@ inline void calc_x̂(const Problem &prob, ///< [in]  Problem description
     x̂ = x + p;
 }
 
-inline bool stop_crit_requires_grad_̂ψₖ(PANOCStopCrit crit) {
+inline bool stop_crit_requires_grad_ψx̂(PANOCStopCrit crit) {
     switch (crit) {
         case PANOCStopCrit::ApproxKKT: [[fallthrough]];
         case PANOCStopCrit::ApproxKKT2: return true;
@@ -227,7 +227,7 @@ inline real_t descent_lemma(
     rvec x̂ₖ,
     /// [out]   Projected gradient step @f$ p^k @f$
     rvec pₖ,
-    /// [out]   Intermediate vector @f$ \hat y(x^k) @f$
+    /// [out]   Intermediate vector @f$ \hat y(\hat x^k) @f$
     rvec ŷx̂ₖ,
     /// [inout] Objective function @f$ \psi(\hat x^k) @f$
     real_t &ψx̂ₖ,

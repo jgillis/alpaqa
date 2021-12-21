@@ -70,7 +70,9 @@ struct StructuredPANOCLBFGSProgressInfo {
     crvec x;
     crvec p;
     real_t norm_sq_p;
-    crvec x_hat;
+    crvec x̂;
+    crvec q;
+    cridvec J;
     real_t φγ;
     real_t ψ;
     crvec grad_ψ;
@@ -143,11 +145,11 @@ class StructuredPANOCLBFGSSolver {
   public:
     LBFGS lbfgs;
 
-  private:
-    void compute_quasi_newton_step(const Problem &problem, real_t γₖ, crvec xₖ,
-                                   crvec y, crvec Σ, crvec grad_ψₖ, crvec pₖ,
-                                   rvec qₖ, indexvec &J, rvec HqK, rvec work_n,
-                                   rvec work_n2, rvec work_m);
+  public:
+    static void compute_quasi_newton_step(
+        const Params &params, const Problem &problem, real_t γₖ, crvec xₖ,
+        crvec y, crvec Σ, crvec grad_ψₖ, crvec pₖ, rvec qₖ, indexvec &J,
+        rvec HqK, LBFGS &lbfgs, rvec work_n, rvec work_n2, rvec work_m);
 };
 
 template <class InnerSolverStats>
