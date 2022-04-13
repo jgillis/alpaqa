@@ -39,10 +39,24 @@ def convert_data(raw_data):
             "f": float(content["f"]),
             "ε": float(content["ε"]),
             "δ": float(content["δ"]),
+
             "f evaluations": int(content["counters"]["f"]),
             "grad_f evaluations": int(content["counters"]["grad_f"]),
+            "f_grad_f evaluations": int(content["counters"]["f_grad_f"]),
+            "f_g evaluations": int(content["counters"]["f_g"]),
+            "f_grad_f_g evaluations": int(content["counters"]["f_grad_f_g"]),
+            "grad_f_grad_g_prod evaluations": int(content["counters"]["grad_f_grad_g_prod"]),
             "g evaluations": int(content["counters"]["g"]),
-            "grad_g evaluations": int(content["counters"]["grad_g_prod"]),
+            "grad_g_prod evaluations": int(content["counters"]["grad_g_prod"]),
+            "grad_gi evaluations": int(content["counters"]["grad_gi"]),
+            "grad_L evaluations": int(content["counters"]["grad_L"]),
+            "hess_L_prod evaluations": int(content["counters"]["hess_L_prod"]),
+            "hess_L evaluations": int(content["counters"]["hess_L"]),
+            "ψ evaluations": int(content["counters"]["ψ"]),
+            "grad_ψ evaluations": int(content["counters"]["grad_ψ"]),
+            "grad_ψ_from_ŷ evaluations": int(content["counters"]["grad_ψ_from_ŷ"]),
+            "ψ_grad_ψ evaluations": int(content["counters"]["ψ_grad_ψ"]),
+
             "linesearch failures": int(content["inner"].get("linesearch_failures", 0)),
             "newton failures": int(content["inner"].get("newton_failures", 0)),
             "L-BFGS failures": int(content["inner"].get("lbfgs_failures", 0)),
@@ -60,6 +74,10 @@ def convert_data(raw_data):
             "m": int(content.get("m", -1)),
             "box constr x": int(content.get("box constraints x", -1)),
         }
+        element["tot f evaluations"] = element["f evaluations"] + element["f_grad_f evaluations"]
+        element["tot grad_f evaluations"] = element["grad_f evaluations"] + element["f_grad_f evaluations"] + element["grad_L evaluations"]
+        element["tot g evaluations"] = element["g evaluations"]
+        element["tot grad_g_prod evaluations"] = element["grad_g_prod evaluations"] + element["grad_L evaluations"]
         with np.errstate(divide="ignore", invalid="ignore"):
             element["average τ"] = np.divide(
                 element["sum τ"],

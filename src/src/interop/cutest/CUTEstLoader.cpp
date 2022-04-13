@@ -281,13 +281,6 @@ class CUTEstLoader {
         }
     }
 
-    unsigned count_box_constraints() const {
-        return std::count_if(x_l.data(), x_l.data() + nvar,
-                             [](real_t x) { return x > -CUTE_INF; }) +
-               std::count_if(x_u.data(), x_u.data() + nvar,
-                             [](real_t x) { return x < +CUTE_INF; });
-    }
-
     std::string get_name() {
         std::string name;
         name.resize(10);
@@ -459,7 +452,10 @@ void CUTEstProblem::eval_grad_L(crvec x, crvec y, rvec grad_L,
 }
 
 unsigned CUTEstProblem::get_number_box_constraints() const {
-    return impl->count_box_constraints();
+    return std::count_if(C.lowerbound.data(), C.lowerbound.data() + n,
+                         [](real_t x) { return x > -CUTE_INF; }) +
+           std::count_if(C.upperbound.data(), C.upperbound.data() + n,
+                         [](real_t x) { return x < +CUTE_INF; });
 }
 
 std::string CUTEstProblem::get_name() const { return impl->get_name(); }

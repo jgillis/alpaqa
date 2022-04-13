@@ -145,6 +145,16 @@ CasADiProblem::CasADiProblem(const std::string &so_name, unsigned n, unsigned m,
         });
 }
 
+CasADiProblem::CasADiProblem(const CasADiProblem &o) : ProblemWithParam{o} {
+    *this = o;
+}
+CasADiProblem &CasADiProblem::operator=(const CasADiProblem &o) {
+    if (o.impl)
+        impl = std::make_unique<CasADiFunctionsWithParam>(*o.impl);
+    else
+        impl.reset();
+    return *this;
+}
 CasADiProblem::CasADiProblem(CasADiProblem &&) = default;
 CasADiProblem &CasADiProblem::operator=(CasADiProblem &&) = default;
 

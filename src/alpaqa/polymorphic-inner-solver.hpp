@@ -146,7 +146,10 @@ struct InnerStatsAccumulator;
 template <>
 struct InnerStatsAccumulator<PolymorphicInnerSolverWrapper::Stats> {
     std::shared_ptr<PolymorphicInnerSolverStatsAccumulatorBase> ptr;
-    py::dict to_dict() const { return ptr->to_dict(); }
+    py::dict to_dict() const {
+        py::gil_scoped_acquire gil;
+        return ptr->to_dict();
+    }
 };
 
 inline InnerStatsAccumulator<PolymorphicInnerSolverWrapper::Stats> &
@@ -173,25 +176,30 @@ class PolymorphicInnerSolverTrampoline : public PolymorphicInnerSolverBase {
     call(const alpaqa::Problem &problem, alpaqa::crvec Σ, alpaqa::real_t ε,
          bool always_overwrite_results, alpaqa::vec x, alpaqa::vec y) {
         using ret = std::tuple<alpaqa::vec, alpaqa::vec, alpaqa::vec, py::dict>;
+        py::gil_scoped_acquire gil;
         PYBIND11_OVERRIDE_PURE_NAME(ret, PolymorphicInnerSolverBase, "__call__",
                                     call, problem, Σ, ε,
                                     always_overwrite_results, x, y);
     }
     std::string get_name() const override {
+        py::gil_scoped_acquire gil;
         PYBIND11_OVERRIDE_PURE(std::string, PolymorphicInnerSolverBase,
                                get_name, );
     }
     py::object get_params() const override {
+        py::gil_scoped_acquire gil;
         PYBIND11_OVERRIDE_PURE(py::object, PolymorphicInnerSolverBase,
                                get_params, );
     }
     void stop() override {
+        py::gil_scoped_acquire gil;
         PYBIND11_OVERRIDE_PURE(void, PolymorphicInnerSolverBase, stop, );
     }
 };
 
 inline py::dict stats_to_dict(const PANOCStats &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "status"_a              = s.status,
         "ε"_a                   = s.ε,
@@ -208,6 +216,7 @@ inline py::dict stats_to_dict(const PANOCStats &s) {
 
 inline py::dict stats_to_dict(const InnerStatsAccumulator<PANOCStats> &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "elapsed_time"_a        = s.elapsed_time,
         "iterations"_a          = s.iterations,
@@ -222,6 +231,7 @@ inline py::dict stats_to_dict(const InnerStatsAccumulator<PANOCStats> &s) {
 
 inline py::dict stats_to_dict(const StructuredPANOCLBFGSSolver::Stats &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "status"_a              = s.status,
         "ε"_a                   = s.ε,
@@ -239,6 +249,7 @@ inline py::dict stats_to_dict(const StructuredPANOCLBFGSSolver::Stats &s) {
 
 inline py::dict stats_to_dict(const PGASolver::Stats &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "status"_a       = s.status,
         "ε"_a            = s.ε,
@@ -249,6 +260,7 @@ inline py::dict stats_to_dict(const PGASolver::Stats &s) {
 
 inline py::dict stats_to_dict(const GAAPGASolver::Stats &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "status"_a                     = s.status,
         "ε"_a                          = s.ε,
@@ -261,6 +273,7 @@ inline py::dict stats_to_dict(const GAAPGASolver::Stats &s) {
 inline py::dict stats_to_dict(
     const InnerStatsAccumulator<StructuredPANOCLBFGSSolver::Stats> &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "elapsed_time"_a        = s.elapsed_time,
         "iterations"_a          = s.iterations,
@@ -277,6 +290,7 @@ inline py::dict stats_to_dict(
 inline py::dict
 stats_to_dict(const InnerStatsAccumulator<PGASolver::Stats> &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "elapsed_time"_a = s.elapsed_time,
         "iterations"_a   = s.iterations,
@@ -286,6 +300,7 @@ stats_to_dict(const InnerStatsAccumulator<PGASolver::Stats> &s) {
 inline py::dict
 stats_to_dict(const InnerStatsAccumulator<GAAPGASolver::Stats> &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "elapsed_time"_a               = s.elapsed_time,
         "iterations"_a                 = s.iterations,
@@ -355,6 +370,7 @@ class PolymorphicInnerSolver : public PolymorphicInnerSolverBase {
     void stop() override { innersolver.stop(); }
     std::string get_name() const override { return innersolver.get_name(); }
     py::object get_params() const override {
+        py::gil_scoped_acquire gil;
         return py::cast(innersolver.get_params());
     }
 
@@ -384,6 +400,7 @@ using PolymorphicALMSolver = ALMSolver<PolymorphicInnerSolverWrapper>;
 
 inline py::dict stats_to_dict(const PolymorphicALMSolver::Stats &s) {
     using py::operator""_a;
+    py::gil_scoped_acquire gil;
     return py::dict{
         "outer_iterations"_a           = s.outer_iterations,
         "elapsed_time"_a               = s.elapsed_time,

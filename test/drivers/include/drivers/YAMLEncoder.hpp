@@ -64,11 +64,21 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out, alpaqa::EvalCounter ctr) {
     out << YAML::BeginMap;
     out << YAML::Key << "f" << YAML::Value << ctr.f;
     out << YAML::Key << "grad_f" << YAML::Value << ctr.grad_f;
+    out << YAML::Key << "f_grad_f" << YAML::Value << ctr.f_grad_f;
+    out << YAML::Key << "f_g" << YAML::Value << ctr.f_g;
+    out << YAML::Key << "f_grad_f_g" << YAML::Value << ctr.f_grad_f_g;
+    out << YAML::Key << "grad_f_grad_g_prod" << YAML::Value
+        << ctr.grad_f_grad_g_prod;
     out << YAML::Key << "g" << YAML::Value << ctr.g;
     out << YAML::Key << "grad_g_prod" << YAML::Value << ctr.grad_g_prod;
     out << YAML::Key << "grad_gi" << YAML::Value << ctr.grad_gi;
+    out << YAML::Key << "grad_L" << YAML::Value << ctr.grad_L;
     out << YAML::Key << "hess_L_prod" << YAML::Value << ctr.hess_L_prod;
     out << YAML::Key << "hess_L" << YAML::Value << ctr.hess_L;
+    out << YAML::Key << "ψ" << YAML::Value << ctr.ψ;
+    out << YAML::Key << "grad_ψ" << YAML::Value << ctr.grad_ψ;
+    out << YAML::Key << "grad_ψ_from_ŷ" << YAML::Value << ctr.grad_ψ_from_ŷ;
+    out << YAML::Key << "ψ_grad_ψ" << YAML::Value << ctr.ψ_grad_ψ;
     out << YAML::EndMap;
     return out;
 }

@@ -120,6 +120,16 @@ auto PolymorphicALMConversion() {
     };
 }
 
+template <class T, class M>
+constexpr auto wrap_ref(M T::*m) {
+    return py::cpp_function([=](T &self) { return Eigen::Ref<M>(self.*m); },
+                            py::return_value_policy::reference_internal);
+}
+template <class T, class M>
+constexpr auto wrap_set(M T::*m) {
+    return [=](T &self, const M &v) { self.*m = v; };
+}
+
 #define STRINGIFY(x) #x
 #define MACRO_STRINGIFY(x) STRINGIFY(x)
 
@@ -158,8 +168,10 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
                  return alpaqa::Box{std::move(ub), std::move(lb)};
              }),
              "ub"_a, "lb"_a, "Create a box with the given bounds.")
-        .def_readwrite("upperbound", &alpaqa::Box::upperbound)
-        .def_readwrite("lowerbound", &alpaqa::Box::lowerbound);
+        .def_property("upperbound", wrap_ref(&alpaqa::Box::upperbound),
+                      wrap_set(&alpaqa::Box::upperbound))
+        .def_property("lowerbound", wrap_ref(&alpaqa::Box::lowerbound),
+                      wrap_set(&alpaqa::Box::lowerbound));
 
     py::class_<alpaqa::Problem, ProblemTrampoline<>>(
         m, "Problem", "C++ documentation: :cpp:class:`alpaqa::Problem`")
@@ -601,6 +613,7 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
         .value("FPRNorm", alpaqa::PANOCStopCrit::FPRNorm)
         .value("FPRNorm2", alpaqa::PANOCStopCrit::FPRNorm2)
         .value("Ipopt", alpaqa::PANOCStopCrit::Ipopt)
+        .value("LBFGSBpp", alpaqa::PANOCStopCrit::LBFGSBpp)
         .export_values();
 
     py::class_<alpaqa::PGAParams>(
@@ -1111,8 +1124,10 @@ PYBIND11_MODULE(ALPAQA_MODULE_NAME, m) {
                                        stats_to_dict(stats));
             },
             "problem"_a, "x"_a = std::nullopt, "y"_a = std::nullopt,
-            py::call_guard<py::scoped_ostream_redirect,
-                           py::scoped_estream_redirect>(),
+            py::call_guard<
+                py::scoped_ostream_redirect,
+                py::scoped_estream_redirect //, py::gil_scoped_release
+                >(),
             "Solve.\n\n"
             ":param problem: Problem to solve.\n"
             ":param y: Initial guess for Lagrange multipliers :math:`y`\n"

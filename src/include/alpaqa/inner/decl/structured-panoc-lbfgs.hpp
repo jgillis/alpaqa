@@ -16,7 +16,7 @@
 
 namespace alpaqa {
 
-/// Tuning parameters for the second order PANOC algorithm.
+/// Tuning parameters for the structured PANOC algorithm.
 struct StructuredPANOCLBFGSParams {
     /// Parameters related to the Lipschitz constant estimate and step size.
     LipschitzEstimateParams Lipschitz;

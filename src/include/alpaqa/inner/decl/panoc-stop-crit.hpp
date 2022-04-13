@@ -91,6 +91,15 @@ enum class PANOCStopCrit {
     /// @f]
     /// i.e. @f$ \varepsilon = \varepsilon' / s_d @f$.
     Ipopt,
+    /// The stopping criterion used by LBFGS++, see 
+    /// https://lbfgspp.statr.me/doc/classLBFGSpp_1_1LBFGSBParam.html#afb20e8fd6c6808c1f736218841ba6947
+    ///
+    /// @f[
+    ///     \varepsilon = \frac{\left\| x^k -
+    ///     \Pi_C\left(x^k - \nabla \psi(x^k)\right) \right\|_\infty}
+    ///     {\max\left\{1, \|x\|_2 \right\}}
+    /// @f]
+    LBFGSBpp,
 };
 
 inline const char *enum_name(PANOCStopCrit s) {
@@ -104,6 +113,7 @@ inline const char *enum_name(PANOCStopCrit s) {
         case PANOCStopCrit::FPRNorm: return "FPRNorm";
         case PANOCStopCrit::FPRNorm2: return "FPRNorm2";
         case PANOCStopCrit::Ipopt: return "Ipopt";
+        case PANOCStopCrit::LBFGSBpp: return "LBFGSBpp";
     }
     throw std::out_of_range("invalid value for alpaqa::PANOCStopCrit");
 }

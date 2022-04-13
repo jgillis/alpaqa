@@ -41,6 +41,8 @@ struct CasADiProblem : ProblemWithParam {
                   unsigned p = 0, bool second_order = false);
     ~CasADiProblem();
 
+    CasADiProblem(const CasADiProblem &);
+    CasADiProblem &operator=(const CasADiProblem &);
     CasADiProblem(CasADiProblem &&);
     CasADiProblem &operator=(CasADiProblem &&);
 
@@ -54,6 +56,14 @@ struct CasADiProblem : ProblemWithParam {
     real_t eval_ψ_ŷ(crvec x, crvec y, crvec Σ, rvec ŷ) const override;
     void eval_grad_ψ_from_ŷ(crvec x, crvec ŷ, rvec grad_ψ,
                             rvec work_n) const override;
+
+    std::unique_ptr<Problem> clone() const & override {
+        return std::unique_ptr<CasADiProblem>(new CasADiProblem(*this));
+    }
+    std::unique_ptr<Problem> clone() && override {
+        return std::unique_ptr<CasADiProblem>(
+            new CasADiProblem(std::move(*this)));
+    }
 
   private:
     std::unique_ptr<struct CasADiFunctionsWithParam> impl;

@@ -122,6 +122,7 @@ inline bool stop_crit_requires_grad_ψx̂(PANOCStopCrit crit) {
         case PANOCStopCrit::FPRNorm: [[fallthrough]];
         case PANOCStopCrit::FPRNorm2: return false;
         case PANOCStopCrit::Ipopt: return true;
+        case PANOCStopCrit::LBFGSBpp: return false;
     }
     throw std::out_of_range("Invalid PANOCStopCrit");
 }
@@ -183,6 +184,11 @@ inline real_t calc_error_stop_crit(
             real_t s_d =
                 std::max(s_max, (C_lagr_mult + D_lagr_mult) / n) / s_max;
             return err / s_d;
+        }
+        case PANOCStopCrit::LBFGSBpp: {
+            return vec_util::norm_inf(
+                       projected_gradient_step(C, 1, xₖ, grad_ψₖ)) /
+                   std::fmax(1, xₖ.norm());
         }
     }
     throw std::out_of_range("Invalid PANOCStopCrit");

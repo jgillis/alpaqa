@@ -21,7 +21,7 @@ using alpaqa::vec;
 #define SOLVER_GAAPGA 6
 #define SOLVER_PANOC_ANDERSON 7
 #define SOLVER_PANOC_2ND 8
-#define SOLVER_PANOC_2ND_LBFGS 9
+#define SOLVER_PANOC_STRUC_LBFGS 9
 
 #if SOLVER == SOLVER_PANOC_SLBFGS
 #include <alpaqa/alm.hpp>
@@ -37,7 +37,7 @@ using Solver = alpaqa::ALMSolver<>;
 #include <alpaqa/alm.hpp>
 #include <alpaqa/inner/second-order-panoc.hpp>
 using Solver = alpaqa::ALMSolver<alpaqa::SecondOrderPANOCSolver>;
-#elif SOLVER == SOLVER_PANOC_2ND_LBFGS
+#elif SOLVER == SOLVER_PANOC_STRUC_LBFGS
 #include <alpaqa/alm.hpp>
 #include <alpaqa/inner/structured-panoc-lbfgs.hpp>
 using Solver = alpaqa::ALMSolver<alpaqa::StructuredPANOCLBFGSSolver>;
@@ -84,7 +84,10 @@ auto get_inner_solver() {
     lbfgsparams.memory = 20;
     return Solver::InnerSolver(panocparams, lbfgsparams);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 #elif SOLVER == SOLVER_PANOC_LBFGS
 auto get_inner_solver() {
@@ -92,7 +95,7 @@ auto get_inner_solver() {
     panocparams.max_iter                       = 1000;
     panocparams.update_lipschitz_in_linesearch = false;
     panocparams.lbfgs_stepsize = alpaqa::LBFGSStepSize::BasedOnCurvature;
-    panocparams.stop_crit      = alpaqa::PANOCStopCrit::ProjGradUnitNorm;
+    panocparams.stop_crit      = alpaqa::PANOCStopCrit::LBFGSBpp;
     panocparams.max_time       = 30s;
 
     alpaqa::LBFGSParams lbfgsparams;
@@ -101,7 +104,10 @@ auto get_inner_solver() {
 
     return Solver::InnerSolver(panocparams, lbfgsparams);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 #elif SOLVER == SOLVER_PANOC_2ND
 auto get_inner_solver() {
@@ -112,7 +118,10 @@ auto get_inner_solver() {
 
     return Solver::InnerSolver(panocparams);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 inline YAML::Emitter &operator<<(YAML::Emitter &out,
                                  const alpaqa::SecondOrderPANOCParams &p) {
@@ -135,24 +144,27 @@ inline YAML::Emitter &operator<<(YAML::Emitter &out,
     out << YAML::EndMap;
     return out;
 }
-#elif SOLVER == SOLVER_PANOC_2ND_LBFGS
+#elif SOLVER == SOLVER_PANOC_STRUC_LBFGS
 auto get_inner_solver() {
     alpaqa::StructuredPANOCLBFGSParams panocparams;
-    panocparams.max_iter                       = 1000;
-    panocparams.update_lipschitz_in_linesearch = true;
+    panocparams.max_iter       = 1000;
     panocparams.lbfgs_stepsize = alpaqa::LBFGSStepSize::BasedOnCurvature;
-    panocparams.stop_crit      = alpaqa::PANOCStopCrit::ProjGradUnitNorm;
+    panocparams.stop_crit      = alpaqa::PANOCStopCrit::LBFGSBpp;
     panocparams.max_time       = 5min;
+    panocparams.hessian_vec = false;
     // panocparams.hessian_vec_finite_differences = false;
     // panocparams.full_augmented_hessian         = true;
-    panocparams.hessian_step_size_heuristic = 10;
+    // panocparams.hessian_step_size_heuristic = 10;
 
     alpaqa::LBFGSParams lbfgsparams;
     lbfgsparams.memory = 20;
 
     return Solver::InnerSolver(panocparams, lbfgsparams);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 inline YAML::Emitter &operator<<(YAML::Emitter &out,
                                  const alpaqa::StructuredPANOCLBFGSParams &p) {
@@ -195,7 +207,10 @@ auto get_inner_solver() {
     params.m              = 20;
     return Solver::InnerSolver(params);
 }
-auto get_problem(const alpaqa::Problem &p) { return alpaqa::ProblemOnlyD(p); }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return alpaqa::ProblemOnlyD(p);
+}
 vec get_y(const alpaqa::Problem &p, const vec &y) {
     vec r(p.m);
     r.topRows(p.m - p.n) = y;
@@ -214,7 +229,10 @@ auto get_inner_solver() {
     params.m              = 20;
     return Solver::InnerSolver(params);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 YAML::Emitter &operator<<(YAML::Emitter &out,
                           const alpaqa::LBFGSBSolver<>::Params &) {
@@ -225,11 +243,14 @@ YAML::Emitter &operator<<(YAML::Emitter &out,
 auto get_inner_solver() {
     alpaqa::PGAParams params;
     params.max_iter  = 1000;
-    params.stop_crit = alpaqa::PANOCStopCrit::ProjGradUnitNorm;
+    params.stop_crit = alpaqa::PANOCStopCrit::LBFGSBpp;
 
     return Solver::InnerSolver(params);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 inline YAML::Emitter &operator<<(YAML::Emitter &out,
                                  const alpaqa::PGAParams &p) {
@@ -250,13 +271,16 @@ auto get_inner_solver() {
     params.max_iter               = 1000;
     params.limitedqr_mem          = 20;
     params.full_flush_on_γ_change = false;
-    params.stop_crit              = alpaqa::PANOCStopCrit::ProjGradUnitNorm;
+    params.stop_crit              = alpaqa::PANOCStopCrit::LBFGSBpp;
     params.max_time               = 30s;
     params.Lipschitz.ε            = 2e-6;
 
     return Solver::InnerSolver(params);
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 inline YAML::Emitter &operator<<(YAML::Emitter &out,
                                  const alpaqa::GAAPGAParams &p) {
@@ -281,7 +305,10 @@ auto get_inner_solver() {
 
     return Solver::InnerSolver(params, {});
 }
-auto get_problem(const alpaqa::Problem &p) { return p; }
+template <class ProblemT>
+auto get_problem(ProblemT &&p) {
+    return std::forward<ProblemT>(p);
+}
 const vec &get_y(const alpaqa::Problem &, const vec &y) { return y; }
 #endif
 
@@ -319,7 +346,7 @@ int main(int argc, char *argv[]) {
         out << YAML::Key << "outer" << YAML::Value << solver.get_params();
         out << YAML::Key << "inner" << YAML::Value
             << solver.inner_solver.get_params();
-#if SOLVER == SOLVER_PANOC_2ND_LBFGS
+#if SOLVER == SOLVER_PANOC_STRUC_LBFGS
         out << YAML::Key << "lbfgs" << YAML::Value
             << solver.inner_solver.lbfgs.get_params();
 #elif SOLVER == SOLVER_PANOC_LBFGS
@@ -343,26 +370,26 @@ int main(int argc, char *argv[]) {
         prob_dir + "/libcutest-problem-" + argv[1] + ".so",
         prob_dir + "/OUTSDIF.d",
     }};
-    auto problem = get_problem(cp);
+    auto &problem = cp; // TODO
 
-    vec x = cp.get_x0();
-    vec y = get_y(problem, cp.get_y0());
+    vec x = problem.get_x0();
+    vec y = get_y(problem, problem.get_y0());
 
     auto status = solver(problem, y, x);
     // ??? TODO: fence
     acitve_solver.store(nullptr, std::memory_order_relaxed);
     // ??? TODO: fence
-    auto report = cp.get_report();
+    auto report = problem.get_report();
 
-    auto f_star = cp.eval_f(x);
+    auto f_star = problem.eval_f(x);
 
     YAML::Emitter out;
     out << YAML::BeginMap;
-    out << YAML::Key << "name" << YAML::Value << cp.get_name();
+    out << YAML::Key << "name" << YAML::Value << problem.get_name();
     out << YAML::Key << "n" << YAML::Value << problem.n;
     out << YAML::Key << "m" << YAML::Value << problem.m;
     out << YAML::Key << "box constraints x" << YAML::Value
-        << cp.get_number_box_constraints();
+        << problem.get_number_box_constraints();
     out << YAML::Key << "solver" << YAML::Value << solver.get_name();
     out << YAML::Key << "status" << YAML::Value << status.status;
     out << YAML::Key << "outer iterations" << YAML::Value
@@ -382,7 +409,7 @@ int main(int argc, char *argv[]) {
     out << YAML::Key << "‖x‖" << YAML::Value << x.norm();
     out << YAML::Key << "‖y‖" << YAML::Value << y.norm();
     out << YAML::Key << "f" << YAML::Value << f_star;
-    out << YAML::Key << "counters" << YAML::Value << cp.evaluations;
+    out << YAML::Key << "counters" << YAML::Value << problem.evaluations;
     // out << YAML::Key << "x" << YAML::Value << x;
     // out << YAML::Key << "y" << YAML::Value << y;
     out << YAML::EndMap;
