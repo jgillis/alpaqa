@@ -27,39 +27,74 @@ elseif (EXISTS "${CMAKE_CURRENT_LIST_DIR}/py-venv")
 endif()
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
 
+option(WITH_TEST "Compile tests (requires GTest)" OFF)
+option(WITH_EXAMPLES "Compile examples" OFF)
+option(WITH_CASADI "Compile casadi interface" OFF)
+set(BUILD_LBFGSPP_VERSION "master")
+option(BUILD_LBFGSPP "Download and compile LBFGSPP" ON)
+
 # Import file with some custom compiler warnings and debug/sanitizer flags 
 include(cmake/GlobalCompilerOptions.cmake)
-# Macro for generating objective/constraint functions and derivatives in Python
-# using CasADi
-include(cmake/CasADiFunctionCodeGenPython.cmake)
-# Macro for generating CUTEst test problems
-include(cmake/CUTEstSIFProblem.cmake)
+if (WITH_TEST)
+    # Macro for generating objective/constraint functions and derivatives in Python
+    # using CasADi
+    include(cmake/CasADiFunctionCodeGenPython.cmake)
+endif()
+
+if (WITH_TEST)
+    # Macro for generating CUTEst test problems
+    include(cmake/CUTEstSIFProblem.cmake)
+endif()
+
+include(ExternalProject)
 
 # ----
 
-# Google Test
-find_package(GTest REQUIRED NO_CMAKE_SYSTEM_PATH)
-include(GoogleTest)
-enable_testing()
+
+if(WITH_TEST)
+    # Google Test
+    find_package(GTest REQUIRED NO_CMAKE_SYSTEM_PATH)
+    include(GoogleTest)
+    enable_testing()
+
+    # CUTEst
+    find_package(CUTEst)
+endif()
 
 # Eigen
 find_package(Eigen3 REQUIRED)
 
-# CasADi
-find_package(casadi)
+if (WITH_CASADI)
+    # CasADi
+    find_package(casadi)
+endif()
 
-# CUTEst
-find_package(CUTEst)
 
 # LBFGSpp
-find_package(LBFGSpp)
+if(BUILD_LBFGSPP)
+    ExternalProject_Add(LBFGSpp-external
+    GIT_REPOSITORY https://github.com/tttapa/LBFGSpp.git
+    GIT_TAG ${BUILD_LBFGSPP_VERSION}
+    PREFIX "${CMAKE_BINARY_DIR}/external_projects"
+    UPDATE_COMMAND ""
+    CMAKE_COMMAND "${EXTERNAL_CMAKE_COMMAND}"
+    CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>)
+else()
+    find_package(LBFGSpp)
+endif()
+
+
 
 # ----
 
 add_subdirectory(src)
 if (NOT SKBUILD)
-    add_subdirectory(test)
-    add_subdirectory(examples)
+    if(WITH_TEST)
+        add_subdirectory(test)
+    endif()
+    if(WITH_EXAMPLES)
+        add_subdirectory(examples)
+    endif()
 endif()
 
 # ----
