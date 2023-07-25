@@ -1,4 +1,8 @@
-cmake_minimum_required(VERSION 3.24)
+if(MSVC)
+    cmake_minimum_required(VERSION 3.24)
+else()
+    cmake_minimum_required(VERSION 3.20)
+endif()
 project(alpaqa VERSION 1.0.0 LANGUAGES CXX)
 set(PY_VERSION_SUFFIX "a8")
 
