@@ -161,109 +161,109 @@ else()
     message(STATUS "Compiling WITHOUT dl support")
 endif()
 
-if (ALPAQA_WITH_CUTEST)
-    find_package(CUTEst REQUIRED)
-    add_library(cutest-interface "interop/cutest/src/cutest-loader.cpp")
-    target_include_directories(cutest-interface PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/cutest/include>
-        $<INSTALL_INTERFACE:include>)
-    target_link_libraries(cutest-interface
-        PUBLIC alpaqa::alpaqa
-        PRIVATE CUTEst::headers ${CMAKE_DL_LIBS} alpaqa::warnings)
-    target_compile_features(alpaqa PUBLIC cxx_std_23)
-    set_target_properties(cutest-interface PROPERTIES SOVERSION ${PROJECT_VERSION})
-    add_library(alpaqa::cutest-interface ALIAS cutest-interface)
-    list(APPEND ALPAQA_INSTALL_TARGETS cutest-interface)
-    message(STATUS "Compiling WITH CUTEst support")
-else()
-    message(STATUS "Compiling WITHOUT CUTEst support")
-endif()
+if(ALPAQA_WITH_DRIVERS)
 
-find_package(Ipopt)
+    if (ALPAQA_WITH_CUTEST)
+        find_package(CUTEst REQUIRED)
+        add_library(cutest-interface "interop/cutest/src/cutest-loader.cpp")
+        target_include_directories(cutest-interface PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/cutest/include>
+            $<INSTALL_INTERFACE:include>)
+        target_link_libraries(cutest-interface
+            PUBLIC alpaqa::alpaqa
+            PRIVATE CUTEst::headers ${CMAKE_DL_LIBS} alpaqa::warnings)
+        target_compile_features(alpaqa PUBLIC cxx_std_23)
+        set_target_properties(cutest-interface PROPERTIES SOVERSION ${PROJECT_VERSION})
+        add_library(alpaqa::cutest-interface ALIAS cutest-interface)
+        list(APPEND ALPAQA_INSTALL_TARGETS cutest-interface)
+        message(STATUS "Compiling WITH CUTEst support")
+    else()
+        message(STATUS "Compiling WITHOUT CUTEst support")
+    endif()
 
-if (TARGET COIN::Ipopt)
-    message(STATUS "Compiling Ipopt problem adapter")
-    add_library(ipopt-adapter
-        "interop/ipopt/src/ipopt-adapter.cpp"
-        "interop/ipopt/src/ipopt-params.cpp"
-    )
-    target_link_libraries(ipopt-adapter 
-        PUBLIC COIN::Ipopt alpaqa::alpaqa PRIVATE alpaqa::warnings)
-    target_include_directories(ipopt-adapter PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/ipopt/include>
-        $<INSTALL_INTERFACE:include>)
-    set_property(TARGET ipopt-adapter
-        PROPERTY OUTPUT_NAME alpaqa-ipopt-adapter)
-    alpaqa_configure_visibility(ipopt-adapter)
-    set_target_properties(ipopt-adapter PROPERTIES SOVERSION ${PROJECT_VERSION})
-    add_library(alpaqa::ipopt-adapter ALIAS ipopt-adapter)
-    list(APPEND ALPAQA_INSTALL_TARGETS ipopt-adapter)
-    generate_export_header(ipopt-adapter
-        EXPORT_FILE_NAME export/alpaqa/ipopt-adapter-export.h)
-    target_include_directories(ipopt-adapter PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/export>)
-endif()
+    find_package(Ipopt)
 
-find_package(lbfgspp QUIET)
-if (TARGET lbfgspp)
-    message(STATUS "Compiling LBFGS++ solver adapter")
-    add_library(lbfgspp-adapter "interop/lbfgspp/src/lbfgsb-adapter.cpp")
-    target_link_libraries(lbfgspp-adapter 
-        PUBLIC lbfgspp alpaqa::alpaqa PRIVATE alpaqa::warnings)
-    target_include_directories(lbfgspp-adapter PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/lbfgspp/include>
-        $<INSTALL_INTERFACE:include>)
-    set_property(TARGET lbfgspp-adapter
-        PROPERTY OUTPUT_NAME alpaqa-lbfgspp-adapter)
-    alpaqa_configure_visibility(lbfgspp-adapter)
-    set_target_properties(lbfgspp-adapter PROPERTIES SOVERSION ${PROJECT_VERSION})
-    add_library(alpaqa::lbfgspp-adapter ALIAS lbfgspp-adapter)
-    list(APPEND ALPAQA_INSTALL_TARGETS lbfgspp-adapter)
-    generate_export_header(lbfgspp-adapter
-        EXPORT_FILE_NAME export/alpaqa/lbfgspp-adapter-export.h)
-    target_include_directories(lbfgspp-adapter PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/export>)
-endif()
+    if (TARGET COIN::Ipopt)
+        message(STATUS "Compiling Ipopt problem adapter")
+        add_library(ipopt-adapter
+            "interop/ipopt/src/ipopt-adapter.cpp"
+            "interop/ipopt/src/ipopt-params.cpp"
+        )
+        target_link_libraries(ipopt-adapter 
+            PUBLIC COIN::Ipopt alpaqa::alpaqa PRIVATE alpaqa::warnings)
+        target_include_directories(ipopt-adapter PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/ipopt/include>
+            $<INSTALL_INTERFACE:include>)
+        set_property(TARGET ipopt-adapter
+            PROPERTY OUTPUT_NAME alpaqa-ipopt-adapter)
+        alpaqa_configure_visibility(ipopt-adapter)
+        set_target_properties(ipopt-adapter PROPERTIES SOVERSION ${PROJECT_VERSION})
+        add_library(alpaqa::ipopt-adapter ALIAS ipopt-adapter)
+        list(APPEND ALPAQA_INSTALL_TARGETS ipopt-adapter)
+        generate_export_header(ipopt-adapter
+            EXPORT_FILE_NAME export/alpaqa/ipopt-adapter-export.h)
+        target_include_directories(ipopt-adapter PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/export>)
+    endif()
 
-cmake_dependent_option(ALPAQA_WITH_LBFGSB
-    "Include the L-BFGS-B solver" ON ALPAQA_HAVE_FORTRAN OFF)
+    find_package(lbfgspp QUIET)
+    if (TARGET lbfgspp)
+        message(STATUS "Compiling LBFGS++ solver adapter")
+        add_library(lbfgspp-adapter "interop/lbfgspp/src/lbfgsb-adapter.cpp")
+        target_link_libraries(lbfgspp-adapter 
+            PUBLIC lbfgspp alpaqa::alpaqa PRIVATE alpaqa::warnings)
+        target_include_directories(lbfgspp-adapter PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/lbfgspp/include>
+            $<INSTALL_INTERFACE:include>)
+        set_property(TARGET lbfgspp-adapter
+            PROPERTY OUTPUT_NAME alpaqa-lbfgspp-adapter)
+        alpaqa_configure_visibility(lbfgspp-adapter)
+        set_target_properties(lbfgspp-adapter PROPERTIES SOVERSION ${PROJECT_VERSION})
+        add_library(alpaqa::lbfgspp-adapter ALIAS lbfgspp-adapter)
+        list(APPEND ALPAQA_INSTALL_TARGETS lbfgspp-adapter)
+        generate_export_header(lbfgspp-adapter
+            EXPORT_FILE_NAME export/alpaqa/lbfgspp-adapter-export.h)
+        target_include_directories(lbfgspp-adapter PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/export>)
+    endif()
 
-if (ALPAQA_WITH_LBFGSB)
-    message(STATUS "Compiling L-BFGS-B solver adapter")
-    add_library(lbfgsb-fortran STATIC
-        "thirdparty/lbfgsb/Lbfgsb.3.0/lbfgsb.f"
-        "thirdparty/lbfgsb/Lbfgsb.3.0/timer.f"
-        "thirdparty/lbfgsb/Lbfgsb.3.0/blas.f"
-        "thirdparty/lbfgsb/Lbfgsb.3.0/linpack.f"
-    )
-    set_target_properties(lbfgsb-fortran PROPERTIES LINKER_LANGUAGE Fortran)
-    list(APPEND ALPAQA_INSTALL_TARGETS lbfgsb-fortran)
-    add_library(lbfgsb-adapter
-        "interop/lbfgsb/src/lbfgsb-adapter.cpp"
-        "interop/lbfgsb/src/lbfgsb-params.cpp"
-        "interop/lbfgsb/src/lbfgsb_c.f90"
-    )
-    set_property(SOURCE "interop/lbfgsb/src/lbfgsb_c.f90"
-                 PROPERTY Fortran_PREPROCESS On)
-    target_link_libraries(lbfgsb-adapter 
-        PUBLIC lbfgsb-fortran alpaqa::alpaqa PRIVATE alpaqa::warnings)
-    target_include_directories(lbfgsb-adapter PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/lbfgsb/include>
-        $<INSTALL_INTERFACE:include>)
-    set_property(TARGET lbfgsb-adapter
-        PROPERTY OUTPUT_NAME alpaqa-lbfgsb-adapter)
-    alpaqa_configure_visibility(lbfgsb-adapter)
-    set_target_properties(lbfgsb-adapter PROPERTIES SOVERSION ${PROJECT_VERSION})
-    add_library(alpaqa::lbfgsb-adapter ALIAS lbfgsb-adapter)
-    list(APPEND ALPAQA_INSTALL_TARGETS lbfgsb-adapter)
-    generate_export_header(lbfgsb-adapter
-        EXPORT_FILE_NAME export/alpaqa/lbfgsb-adapter-export.h)
-    target_include_directories(lbfgsb-adapter PUBLIC
-        $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/export>)
-endif()
+    cmake_dependent_option(ALPAQA_WITH_LBFGSB
+        "Include the L-BFGS-B solver" ON ALPAQA_HAVE_FORTRAN OFF)
 
-# Drivers
-if (ALPAQA_WITH_DRIVERS)
+    if (ALPAQA_WITH_LBFGSB)
+        message(STATUS "Compiling L-BFGS-B solver adapter")
+        add_library(lbfgsb-fortran STATIC
+            "thirdparty/lbfgsb/Lbfgsb.3.0/lbfgsb.f"
+            "thirdparty/lbfgsb/Lbfgsb.3.0/timer.f"
+            "thirdparty/lbfgsb/Lbfgsb.3.0/blas.f"
+            "thirdparty/lbfgsb/Lbfgsb.3.0/linpack.f"
+        )
+        set_target_properties(lbfgsb-fortran PROPERTIES LINKER_LANGUAGE Fortran)
+        list(APPEND ALPAQA_INSTALL_TARGETS lbfgsb-fortran)
+        add_library(lbfgsb-adapter
+            "interop/lbfgsb/src/lbfgsb-adapter.cpp"
+            "interop/lbfgsb/src/lbfgsb-params.cpp"
+            "interop/lbfgsb/src/lbfgsb_c.f90"
+        )
+        set_property(SOURCE "interop/lbfgsb/src/lbfgsb_c.f90"
+                    PROPERTY Fortran_PREPROCESS On)
+        target_link_libraries(lbfgsb-adapter 
+            PUBLIC lbfgsb-fortran alpaqa::alpaqa PRIVATE alpaqa::warnings)
+        target_include_directories(lbfgsb-adapter PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_SOURCE_DIR}/interop/lbfgsb/include>
+            $<INSTALL_INTERFACE:include>)
+        set_property(TARGET lbfgsb-adapter
+            PROPERTY OUTPUT_NAME alpaqa-lbfgsb-adapter)
+        alpaqa_configure_visibility(lbfgsb-adapter)
+        set_target_properties(lbfgsb-adapter PROPERTIES SOVERSION ${PROJECT_VERSION})
+        add_library(alpaqa::lbfgsb-adapter ALIAS lbfgsb-adapter)
+        list(APPEND ALPAQA_INSTALL_TARGETS lbfgsb-adapter)
+        generate_export_header(lbfgsb-adapter
+            EXPORT_FILE_NAME export/alpaqa/lbfgsb-adapter-export.h)
+        target_include_directories(lbfgsb-adapter PUBLIC
+            $<BUILD_INTERFACE:${CMAKE_CURRENT_BINARY_DIR}/export>)
+    endif()
+
     add_executable(driver
         "alpaqa/src/driver/alpaqa-driver.cpp"
         "alpaqa/src/driver/panoc-driver.cpp"
