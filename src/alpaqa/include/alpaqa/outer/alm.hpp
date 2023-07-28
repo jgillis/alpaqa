@@ -17,7 +17,7 @@ struct InnerStatsAccumulator;
 
 /// Parameters for the Augmented Lagrangian solver.
 template <Config Conf = DefaultConfig>
-struct ALMParams {
+struct ALPAQA_EXPORT ALMParams {
     USING_ALPAQA_CONFIG(Conf);
 
     /// Primal tolerance (used for stopping criterion of inner solver).
@@ -93,7 +93,7 @@ struct ALMParams {
 ///
 /// @ingroup    grp_ALMSolver
 template <class InnerSolverT>
-class ALMSolver {
+class ALPAQA_EXPORT ALMSolver {
   public:
     USING_ALPAQA_CONFIG_TEMPLATE(InnerSolverT::config_t);
 

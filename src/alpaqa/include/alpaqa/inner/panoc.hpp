@@ -21,7 +21,7 @@ namespace alpaqa {
 
 /// Tuning parameters for the PANOC algorithm.
 template <Config Conf = DefaultConfig>
-struct PANOCParams {
+struct ALPAQA_EXPORT PANOCParams {
     USING_ALPAQA_CONFIG(Conf);
 
     /// Parameters related to the Lipschitz constant estimate and step size.
@@ -63,7 +63,7 @@ struct PANOCParams {
 };
 
 template <Config Conf = DefaultConfig>
-struct PANOCStats {
+struct ALPAQA_EXPORT PANOCStats {
     USING_ALPAQA_CONFIG(Conf);
 
     SolverStatus status = SolverStatus::Busy;
@@ -86,7 +86,7 @@ struct PANOCStats {
 };
 
 template <Config Conf = DefaultConfig>
-struct PANOCProgressInfo {
+struct ALPAQA_EXPORT PANOCProgressInfo {
     USING_ALPAQA_CONFIG(Conf);
 
     unsigned k;
@@ -115,7 +115,7 @@ struct PANOCProgressInfo {
 /// PANOC solver for ALM.
 /// @ingroup    grp_InnerSolvers
 template <class DirectionT>
-class PANOCSolver {
+class ALPAQA_EXPORT PANOCSolver {
   public:
     USING_ALPAQA_CONFIG_TEMPLATE(DirectionT::config_t);
 

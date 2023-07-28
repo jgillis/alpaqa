@@ -38,6 +38,7 @@ add_library(alpaqa
     "alpaqa/src/inner/directions/panoc/structured-lbfgs.cpp"
     "alpaqa/src/inner/directions/panoc/structured-newton.cpp"
     "alpaqa/src/inner/internal/panoc-helpers.cpp"
+    "alpaqa/src/params/params.cpp"
 )
 if (ALPAQA_WITH_OCP)
     target_sources(alpaqa PRIVATE

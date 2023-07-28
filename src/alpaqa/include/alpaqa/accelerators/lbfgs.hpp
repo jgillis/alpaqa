@@ -105,7 +105,7 @@ struct LBFGSStorage {
 /// Limited memory Broyden–Fletcher–Goldfarb–Shanno (L-BFGS) algorithm
 /// @ingroup grp_Accelerators
 template <Config Conf = DefaultConfig>
-class LBFGS {
+class ALPAQA_EXPORT LBFGS {
   public:
     USING_ALPAQA_CONFIG(Conf);
 
