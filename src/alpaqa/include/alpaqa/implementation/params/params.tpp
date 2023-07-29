@@ -119,6 +119,27 @@ void set_param(T &t, ParamString s) {
     it->second.set(t, s);
 }
 
+/// Overwrites @p t based on the @p options that start with @p prefix.
+/// If @p used is not `nullopt`, sets corresponding flag of the options that
+/// were used.
+template <class T>
+void set_params(
+    T &t, std::string_view prefix, std::span<const std::string_view> options,
+    std::optional<std::span<bool>> used) {
+
+    size_t index = 0;
+    for (const auto &kv : options) {
+        auto [key, value]     = split_key(kv, '=');
+        auto [pfx, remainder] = split_key(key);
+        auto curr_index       = index++;
+        if (pfx != prefix)
+            continue;
+        if (used)
+            (*used)[curr_index] = true;
+        set_param(t, {.full_key = kv, .key = remainder, .value = value});
+    }
+}
+
 /// Helper macro to easily specialize @ref alpaqa::params::dict_to_struct_table.
 #define PARAMS_TABLE(type_, ...)                                               \
     template <>                                                                \

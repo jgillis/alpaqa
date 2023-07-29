@@ -48,20 +48,7 @@ void set_param(T &, ParamString); /* deliberately undefined */
 template <class T>
 void ALPAQA_EXPORT set_params(
     T &t, std::string_view prefix, std::span<const std::string_view> options,
-    std::optional<std::span<bool>> used = std::nullopt) {
-
-    size_t index = 0;
-    for (const auto &kv : options) {
-        auto [key, value]     = split_key(kv, '=');
-        auto [pfx, remainder] = split_key(key);
-        auto curr_index       = index++;
-        if (pfx != prefix)
-            continue;
-        if (used)
-            (*used)[curr_index] = true;
-        set_param(t, {.full_key = kv, .key = remainder, .value = value});
-    }
-}
+    std::optional<std::span<bool>> used = std::nullopt);
 
 template <Config Conf>
 struct ALPAQA_EXPORT vec_from_file {
